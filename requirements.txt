@@ -6,6 +6,7 @@ python-dateutil
 pypdf
 python-dotenv
 google-genai
+supabase
 
 # 테스트
 pytest

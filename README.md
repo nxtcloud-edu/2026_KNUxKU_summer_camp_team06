@@ -12,6 +12,7 @@
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 전체 데이터 흐름도, 역할↔모듈 매핑, 공용 스키마 계약, 배포 단계 |
 | [`docs/plan_b.md`](./docs/plan_b.md) | B(데이터·링크 분석) 파트 실행 계획 및 진행 상황 |
 | [`docs/personas.md`](./docs/personas.md) | 수집 데이터 기반 테스트 페르소나 5종 — C의 판정 로직 테스트에 바로 사용 가능 |
+| [`docs/db_schema.md`](./docs/db_schema.md) | Supabase DB 스키마 전체 계획(8개 테이블) — B가 만든 2개는 실제 적용 완료, 나머지는 A/C/D 몫 |
 
 ## 폴더 구조 및 담당자
 
@@ -33,9 +34,13 @@ app/
   streamlit_app.py       # E — Frontend
 data/
   opportunities.json         # B — 실제 공고 20건 (자격요건 원문 포함)
-  normalization_results.json # B — 위 20건을 normalize()에 돌린 결과 (재생성 가능)
+  normalization_results.json # B — 위 20건을 normalize()에 돌린 결과 (재생성 가능, Supabase에도 동일하게 적재됨)
 scripts/
   run_pipeline.py         # B — extraction+normalization 파이프라인 검증 스크립트
+  seed_supabase.py        # B — 20건을 Supabase saved_items/normalized_opportunities에 적재
+supabase/
+  migrations/              # B — DB 마이그레이션 SQL (Supabase SQL Editor에서 실행)
+src/db.py                  # B — extract()/normalize() 결과를 Supabase에 저장하는 레이어
 ```
 
 각 파일 상단에 `OWNER:` 주석으로 담당자를 표시했습니다. `src/models.py`는 아직 A가 정식
@@ -50,17 +55,20 @@ scripts/
 - **content_category 자동 분류**: 사용자는 지원사업만 저장하지 않는다(인스타 정보성 글, 행사 티켓 공지 등도 저장함) — 8종 조건 중 뭐가 뽑혔는지로 `opportunity`/`time_sensitive_info`/`general_info`를 자동 분류해서, 지원사업이 아닌 콘텐츠가 C의 적격 판정으로 잘못 넘어가지 않도록 함. 자세한 라우팅 규칙은 `ARCHITECTURE.md` 1-1절 참고
 - Instagram/TikTok처럼 로그인 없인 본문을 못 주는 SPA는 감지해서 실패 처리 + 스크린샷 유도 (겉보기엔 200 OK라도 실제로는 로그인월인 경우까지 커버)
 - 실제 공고 20건(지원사업6·공모전5·서포터즈5·부트캠프4)으로 검증 완료: **20/20 정규화 성공**, 8종 조건 전 타입 실제 등장 확인
+- **DB: Supabase**(Project.md 원래 계획인 "로컬 JSON, DB 없음"에서 전환됨). `saved_items`/`normalized_opportunities` 테이블 생성 + RLS 활성화 + 실제 20건 적재 완료 (`src/db.py`, `scripts/seed_supabase.py`, `supabase/migrations/`). 전체 스키마 계획은 `docs/db_schema.md` 참고 — C/D는 각자 테이블을 이 문서 기준으로 추가하면 됨
 
 **실행 방법**
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env   # GEMINI_API_KEY= 뒤에 본인 키 붙여넣기 (Google AI Studio에서 발급)
+cp .env.example .env   # GEMINI_API_KEY=, SUPABASE_URL=, SUPABASE_KEY= 채우기
+                        # (Gemini는 Google AI Studio, Supabase는 프로젝트 Settings > API Keys)
 
 python -m src.extraction_agent       # 추출 데모
 python -m src.normalization_agent    # 정규화 데모
-python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증
+python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증 (로컬 JSON에 저장)
+python -m scripts.seed_supabase      # 20건을 Supabase에 적재
 ```
 
 `.env`에 `GEMINI_API_KEY`가 없으면 코드가 자동으로 mock으로 폴백하니, 키가 당장 없어도
