@@ -37,7 +37,9 @@ http://localhost:4173/auth/callback
 ~~~
 
 Extension 인증을 구현할 때는 Chrome이 만든 chromiumapp.org redirect URL도 Supabase의
-허용 Redirect URLs에 추가한다. Extension의 실제 ID가 확정된 뒤에만 추가한다.
+허용 Redirect URLs에 추가한다. Extension을 `chrome://extensions`에서 로드한 뒤 팝업에
+표시되는 `Supabase Redirect URL` 전체를 복사해 등록한다. 이 URL은 확장프로그램마다
+다르며, Google Cloud가 아니라 **Supabase Dashboard의 Redirect URLs**에 추가한다.
 
 ## 3. DB와 RLS 적용
 

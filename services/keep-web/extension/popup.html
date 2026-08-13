@@ -5,11 +5,19 @@
     <title>Keep</title>
     <style>
       body { width: 260px; margin: 16px; font-family: system-ui, sans-serif; }
-      button { width: 100%; padding: 8px; }
+      button, input { box-sizing: border-box; width: 100%; padding: 8px; }
+      label { display: block; margin: 12px 0 4px; font-size: 12px; }
+      .secondary { margin-top: 8px; }
+      #redirect { margin: 8px 0 0; color: #555; font-size: 11px; overflow-wrap: anywhere; }
       #status { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
     </style>
   </head>
   <body>
+    <label for="api-base">KEEP:ON 서버 주소</label>
+    <input id="api-base" type="url" value="http://127.0.0.1:4174" />
+    <button id="connect" class="secondary" type="button">Google 계정 연결</button>
+    <button id="disconnect" class="secondary" type="button" hidden>계정 연결 해제</button>
+    <p id="redirect"></p>
     <button id="keep" type="button">현재 페이지 Keep</button>
     <div id="status">대기 중</div>
     <script src="popup.js"></script>

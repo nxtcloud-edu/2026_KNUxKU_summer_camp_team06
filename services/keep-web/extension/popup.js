@@ -1,9 +1,81 @@
-const API_BASE = 'http://localhost:4173';
+const DEFAULT_API_BASE = 'http://127.0.0.1:4174';
 const keepButton = document.querySelector('#keep');
 const statusOutput = document.querySelector('#status');
+const apiBaseInput = document.querySelector('#api-base');
+const connectButton = document.querySelector('#connect');
+const disconnectButton = document.querySelector('#disconnect');
+const redirectOutput = document.querySelector('#redirect');
+
+let apiBase = DEFAULT_API_BASE;
+let accessToken = null;
 
 function setStatus(message) {
   statusOutput.textContent = message;
+}
+
+function normalizeApiBase(value) {
+  const url = new URL(value);
+  if (!/^https?:$/.test(url.protocol)) throw new Error('서버 주소는 http 또는 https여야 합니다.');
+  return url.origin;
+}
+
+async function readJsonResponse(response) {
+  const body = await response.text();
+  if (!body) throw new Error(`KEEP:ON 서버가 빈 응답을 반환했습니다. 서버 주소(${apiBase})를 확인해 주세요.`);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`KEEP:ON 서버가 JSON이 아닌 응답을 반환했습니다. 서버 주소(${apiBase})를 확인해 주세요.`);
+  }
+}
+
+function updateConnectionUi() {
+  connectButton.hidden = Boolean(accessToken);
+  disconnectButton.hidden = !accessToken;
+}
+
+async function loadSettings() {
+  const stored = await chrome.storage.local.get(['apiBase', 'accessToken']);
+  apiBase = stored.apiBase || DEFAULT_API_BASE;
+  accessToken = stored.accessToken || null;
+  apiBaseInput.value = apiBase;
+  redirectOutput.textContent = `Supabase Redirect URL: ${chrome.identity.getRedirectURL('auth/callback')}`;
+  updateConnectionUi();
+}
+
+async function saveApiBase() {
+  apiBase = normalizeApiBase(apiBaseInput.value.trim());
+  apiBaseInput.value = apiBase;
+  await chrome.storage.local.set({ apiBase });
+}
+
+async function connectAccount() {
+  connectButton.disabled = true;
+  setStatus('Google 로그인 창을 여는 중...');
+  try {
+    await saveApiBase();
+    const configResponse = await fetch(`${apiBase}/v1/auth/config`);
+    const config = await readJsonResponse(configResponse);
+    if (!configResponse.ok) throw new Error(config.error?.message || '인증 설정을 읽지 못했습니다.');
+    const redirectTo = chrome.identity.getRedirectURL('auth/callback');
+    const authorizeUrl = new URL(`${config.supabase_url}/auth/v1/authorize`);
+    authorizeUrl.searchParams.set('provider', 'google');
+    authorizeUrl.searchParams.set('redirect_to', redirectTo);
+    const callbackUrl = await chrome.identity.launchWebAuthFlow({ url: authorizeUrl.href, interactive: true });
+    const callback = new URL(callbackUrl);
+    const callbackError = callback.searchParams.get('error_description') || callback.hash.match(/error_description=([^&]+)/)?.[1];
+    if (callbackError) throw new Error(decodeURIComponent(callbackError.replace(/\+/g, ' ')));
+    const token = new URLSearchParams(callback.hash.replace(/^#/, '')).get('access_token');
+    if (!token) throw new Error('로그인 토큰을 받지 못했습니다. Supabase Redirect URL 설정을 확인해 주세요.');
+    accessToken = token;
+    await chrome.storage.local.set({ accessToken });
+    updateConnectionUi();
+    setStatus('계정이 연결되었습니다. 이제 Keep할 수 있습니다.');
+  } catch (error) {
+    setStatus(`계정 연결 실패\n${error.message}`);
+  } finally {
+    connectButton.disabled = false;
+  }
 }
 
 function collectPageEvidence() {
@@ -276,6 +348,8 @@ async function keepCurrentPage() {
   keepButton.disabled = true;
   setStatus('페이지 증거를 수집하는 중...');
   try {
+    await saveApiBase();
+    if (!accessToken) throw new Error('먼저 Google 계정을 연결해 주세요.');
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const tabs = activeTab && /^https?:\/\//i.test(activeTab.url || '')
       ? [activeTab]
@@ -293,19 +367,19 @@ async function keepCurrentPage() {
       }
       throw new Error('게시물 주소와 페이지 canonical 주소가 다릅니다. 원문 게시물을 다시 연 뒤 Keep해 주세요.');
     }
-    const response = await fetch(`${API_BASE}/v1/intakes`, {
+    const response = await fetch(`${apiBase}/v1/intakes`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-local-test-key': 'local-only' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ source_type: 'page_evidence', page_evidence: pageEvidence })
     });
-    const result = await response.json();
+    const result = await readJsonResponse(response);
     if (!response.ok) {
       const details = Array.isArray(result.error?.details) && result.error.details.length
         ? ` (${result.error.details.join(', ')})`
         : '';
       throw new Error(`${result.error?.message || `Intake 실패 (${response.status})`}${details}`);
     }
-    const dashboardUrl = `${API_BASE}${result.dashboard_url}`;
+    const dashboardUrl = `${apiBase}${result.dashboard_url}`;
     setStatus(`저장됨\n${result.intake_id}\n처리 결과 화면을 여는 중...`);
     await chrome.tabs.create({ url: dashboardUrl });
   } catch (error) {
@@ -316,3 +390,11 @@ async function keepCurrentPage() {
 }
 
 keepButton.addEventListener('click', keepCurrentPage);
+connectButton.addEventListener('click', connectAccount);
+disconnectButton.addEventListener('click', async () => {
+  accessToken = null;
+  await chrome.storage.local.remove('accessToken');
+  updateConnectionUi();
+  setStatus('계정 연결을 해제했습니다.');
+});
+loadSettings().catch((error) => setStatus(`설정 초기화 실패\n${error.message}`));
