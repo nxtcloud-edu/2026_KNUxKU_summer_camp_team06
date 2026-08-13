@@ -81,7 +81,13 @@ class ExecutionChat:
             tail = f"\n다음 할 일: {nxt.title} ({nxt.due_at.date() if nxt.due_at else '미정'})" if nxt else ""
             return head + tail
 
-        # 5) Bedrock 모드면 자유 대화를 LLM에 위임 (선택)
+        # 5) 규칙으로 못 잡은 자유 대화 → LLM에 위임
+        #    - gemini: llm_client.chat_reply()  (기본, GEMINI_API_KEY 있을 때)
+        #    - bedrock: strands 에이전트
+        if getattr(self.agent, "llm_client", None) is not None:
+            reply = self._llm_reply(msg)
+            if reply:
+                return reply
         if self.agent.provider == "bedrock":
             reply = self._bedrock_reply(msg)
             if reply:
@@ -124,6 +130,24 @@ class ExecutionChat:
                 return t
         # 아무 것도 특정 못하면 다음 할 일을 완료로 간주
         return pending[0] if pending else None
+
+    def _llm_reply(self, msg: str) -> Optional[str]:
+        """현재 실행 상황을 요약해 LLM에게 자유 대화 응답을 맡긴다 (Gemini)."""
+        try:
+            p = self.agent.tracker.refresh(self.goal, self.now)
+            dleft = (self.goal.deadline - self.now).days if self.goal.deadline else None
+            nxt = p["next_task"]
+            context = (
+                f"목표: {self.goal.title} ({self.goal.category})\n"
+                f"마감: {self.goal.deadline} (남은 일수: {dleft})\n"
+                f"진행률: {p['progress']}% ({p['done']}/{p['total']} 완료)\n"
+                f"다음 할 일: {nxt.title if nxt else '없음'}"
+                f"{(' · ' + str(nxt.due_at.date())) if nxt and nxt.due_at else ''}"
+            )
+            reply = self.agent.llm_client.chat_reply(context, msg)
+            return reply or None
+        except Exception:
+            return None
 
     def _bedrock_reply(self, msg: str) -> Optional[str]:
         try:

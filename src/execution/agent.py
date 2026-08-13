@@ -35,14 +35,27 @@ from .tools import CalendarTool, NotificationTool
 
 
 def _default_provider() -> str:
-    """bedrock을 명시적으로 요청했고 실제로 import 가능할 때만 bedrock, 아니면 local."""
-    if os.environ.get("EXECUTION_LLM_PROVIDER", "").lower() == "bedrock":
+    """실행 LLM provider 결정.
+
+    우선순위:
+      1) EXECUTION_LLM_PROVIDER 를 명시하면 그 값을 따른다(사용 불가하면 local로 폴백).
+      2) 미지정이면 GEMINI_API_KEY 가 있을 때 gemini (B 파트와 동일한 기본값), 없으면 local.
+    """
+    p = os.environ.get("EXECUTION_LLM_PROVIDER", "").lower()
+    if p == "bedrock":
         try:
             import boto3  # noqa: F401
             import strands  # noqa: F401
             return "bedrock"
         except Exception:
             return "local"
+    if p == "gemini":
+        return "gemini" if os.environ.get("GEMINI_API_KEY") else "local"
+    if p == "local":
+        return "local"
+    # 자동 감지
+    if os.environ.get("GEMINI_API_KEY"):
+        return "gemini"
     return "local"
 
 
@@ -66,19 +79,28 @@ class ExecutionAgent:
         provider: Optional[str] = None,
     ):
         self.store = store or ExecutionStore()
+        self.provider = provider or _default_provider()
+
+        # provider가 gemini면 실제 LLM 클라이언트를 만들어 TaskDecomposer/Chat에 물린다.
+        # 생성 실패(키 오류 등) 시 조용히 local로 강등한다 — 데모를 막지 않는다.
+        self.llm_client = None
+        if self.provider == "gemini":
+            from .llm import _default_execution_llm
+            self.llm_client = _default_execution_llm()
+            if self.llm_client is None:
+                self.provider = "local"
+
         self.calendar = CalendarTool(self.store)
         self.notifier = NotificationTool(self.store)
 
         self.goal_manager = GoalManager(self.store)
-        self.decomposer = TaskDecomposer(self.store)
+        self.decomposer = TaskDecomposer(self.store, llm_client=self.llm_client)
         self.planner = Planner(self.store, self.calendar)
         self.tracker = ProgressTracker(self.store)
         self.detector = StallDetector()
         self.intervener = InterventionManager(self.store, self.notifier)
         self.replanner = Replanner(self.store, self.calendar)
         self.verifier = CompletionVerifier(self.store, self.notifier)
-
-        self.provider = provider or _default_provider()
 
     # --- Tool 1 + 마감 역산: 목표 시작 → Task 분해 → 캘린더 등록 ----------------
 
@@ -89,7 +111,7 @@ class ExecutionAgent:
         auto_reminder=True면 마감 기본 리드타임(사용자 설정) 전에 리마인드도 예약한다.
         """
         goal = self.goal_manager.create_goal(ctx)
-        tasks = self.decomposer.decompose(goal, ctx.opportunity)
+        tasks = self.decomposer.decompose(goal, ctx.opportunity, user=ctx.user)
         plan = self.planner.build_plan(goal, tasks, ctx.now)
 
         reminders: list[Notification] = []

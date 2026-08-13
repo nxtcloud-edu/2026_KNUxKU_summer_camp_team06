@@ -86,9 +86,12 @@ AWS로 최종 확정되면 구현체만 교체하면 됩니다. 자세한 내용
 
 - 구현: `src/execution/` 패키지 (모듈 9종 + Tool 2개 + State/DB + Scheduler + Memory).
   기존 D 스텁 파일(`planning_agent.py` 등)은 이 패키지로 연결되는 얇은 진입점.
-- **로컬 모드 기본** — AWS/LLM 없이 항상 동작. `EXECUTION_LLM_PROVIDER=bedrock` + strands/boto3
-  설치 시 시스템 프롬프트로 Bedrock(Claude)이 직접 도구를 호출(B 파트와 동일한 provider 스위치).
-- 실제 공고 20건 전부 크래시 없이 실행 검증, 핵심 동작 pytest 9종 통과.
+- **provider 스위치**(B 파트와 동일): `.env`에 `GEMINI_API_KEY`가 있으면 **gemini 모드**로
+  Gemini가 공고 원문을 읽고 Task를 분해한다. 없으면 자동으로 카테고리 템플릿(local)으로 폴백해
+  키/AWS 없이도 항상 동작. `EXECUTION_LLM_PROVIDER=bedrock`이면 Bedrock(Claude) 경로.
+- DB: MVP는 로컬 JSON. E 프론트와 캘린더/인박스를 공유할 땐 Supabase로 — 스키마는
+  `docs/supabase_schema.sql`, 연동 지점은 `docs/plan_d.md` 7절 참고.
+- 실제 공고 20건 전부 크래시 없이 실행 검증, 핵심 동작 pytest 11종 통과.
 
 **실행 방법**
 ```bash
