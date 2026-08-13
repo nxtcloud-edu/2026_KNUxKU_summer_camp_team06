@@ -1,0 +1,9 @@
+body { margin: 24px; font-family: system-ui, sans-serif; line-height: 1.45; }
+main { max-width: 900px; }
+section { margin-top: 24px; }
+pre, .opportunity-card { padding: 12px; border: 1px solid #bbb; white-space: pre-wrap; overflow-wrap: anywhere; }
+.opportunity-card { margin: 8px 0; }
+.opportunity-card p { margin: 8px 0; }
+.opportunity-card strong { display: inline-block; min-width: 52px; }
+.opportunity-card a { overflow-wrap: anywhere; }
+nav { display: flex; gap: 16px; margin-top: 24px; }

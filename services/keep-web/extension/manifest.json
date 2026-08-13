@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Opportunity Keeper local test",
+  "version": "0.1.0",
+  "description": "현재 탭의 정보성 페이지 증거를 local Opportunity Keeper로 보냅니다.",
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": [
+    "http://localhost:4173/*",
+    "http://127.0.0.1:4173/*",
+    "https://www.threads.com/*",
+    "https://threads.net/*",
+    "https://www.instagram.com/*",
+    "https://instagram.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Keep",
+    "default_popup": "popup.html"
+  }
+}
