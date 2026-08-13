@@ -1,0 +1,16 @@
+# 로컬 개발 (지금 바로 필요)
+pydantic>=2.0
+requests
+beautifulsoup4
+python-dateutil
+
+# 테스트
+pytest
+
+# Frontend (E 담당)
+streamlit
+
+# --- 아래는 AWS 계정 발급 후 (대회 마지막 날) 활성화 ---
+# strands-agents
+# boto3
+# bedrock-agentcore
