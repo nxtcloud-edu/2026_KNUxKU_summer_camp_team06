@@ -111,7 +111,7 @@ def rank_opportunity(
             growth_score=0,
             preference_score=preference_score,
             liked=liked,
-            reasons=["Excluded because the user does not meet the eligibility requirements."],
+            reasons=["현재 입력한 프로필 기준으로 참여 조건을 충족하지 않습니다."],
         )
 
     interest_score = _match_score(profile.interests, signals.keywords + signals.categories)
@@ -133,15 +133,15 @@ def rank_opportunity(
         else RecommendationLevel.MEDIUM if score >= 50 else RecommendationLevel.LOW
     )
     reasons = [
-        f"Preference similarity: {preference_score}/100.",
-        f"Interest fit: {interest_score}/100.",
-        f"Growth value: {growth_score}/100.",
-        f"Feasibility: {feasibility.level.value}.",
+        f"좋아요한 공고와의 유사도 {preference_score}점.",
+        f"관심 분야 적합도 {interest_score}점.",
+        f"성장 가치 {growth_score}점.",
+        f"준비 여유: {feasibility.level.value}.",
     ]
     if liked:
-        reasons.insert(0, "This opportunity was liked by the user.")
+        reasons.insert(0, "사용자가 직접 좋아요한 공고입니다.")
     if eligibility.overall == Verdict.UNKNOWN:
-        reasons.append("Some eligibility details are missing; confirm them in the chatbot.")
+        reasons.append("확인하지 못한 참여 조건이 있어 AI 대화 또는 원문에서 확인이 필요합니다.")
     return RankingResult(
         opportunity_id=signals.opportunity_id,
         title=signals.title,

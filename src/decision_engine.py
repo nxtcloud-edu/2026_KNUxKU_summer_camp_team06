@@ -84,7 +84,7 @@ def recommend_from_likes(
     if not liked_signals:
         return RecommendationFeed(
             liked_opportunity_ids=liked_ids,
-            follow_up_questions=["Like at least one opportunity to receive personalized recommendations."],
+            follow_up_questions=["관심 있는 공고에 하트를 눌러 추천 기준을 만들어 주세요."],
         )
 
     evaluated: list[DecisionResult] = []
@@ -115,12 +115,12 @@ def _profile_questions(profile: UserProfileDraft, recommendations: list[Decision
         return []
     questions: list[str] = []
     if profile.birth_date is None:
-        questions.append("What is your full date of birth?")
+        questions.append("생년월일을 입력하면 나이 조건까지 더 정확히 확인할 수 있어요.")
     if not profile.region:
-        questions.append("Which region do you live in?")
+        questions.append("거주 지역을 입력하면 지역 조건까지 더 정확히 확인할 수 있어요.")
     if not profile.status:
-        questions.append("What is your current student/employment status?")
-    return questions or ["Please confirm the remaining eligibility details in the chatbot."]
+        questions.append("현재 상태를 입력하면 대상 조건까지 더 정확히 확인할 수 있어요.")
+    return questions or ["남은 참여 조건은 원문과 AI 대화에서 함께 확인해 주세요."]
 
 
 def create_chatbot_handoff(feed: RecommendationFeed, opportunity_id: str) -> ChatbotHandoff:
