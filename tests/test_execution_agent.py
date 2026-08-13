@@ -18,7 +18,7 @@ from src.execution.models import (
     TaskStatus,
     UserProfile,
 )
-from src.execution.modules import parse_deadline
+from src.execution.modules import TaskDecomposer, parse_deadline
 from src.execution.store import ExecutionStore
 
 NOW = datetime(2026, 8, 13, 9, 0)
@@ -108,6 +108,45 @@ def test_completion(store, ctx):
     goal = store.get_goal(result.goal.id)
     assert goal.status == GoalStatus.COMPLETED
     assert all(t.status == TaskStatus.DONE for t in store.tasks_for_goal(goal.id))
+
+
+# --- LLM(Gemini) Task 분해 경로 (가짜 클라이언트로 실키 없이 검증) ------------
+
+
+class _FakeLLM:
+    """decompose_tasks가 고정 JSON을 반환하는 스텁 (Gemini 자리)."""
+
+    def decompose_tasks(self, opportunity, user, deadline_str):
+        return [
+            {"title": "공고 꼼꼼히 읽기", "description": "요강 파악", "estimated_hours": 1, "tags": ["분석"]},
+            {"title": "팀 꾸리기", "description": "역할 분담", "estimated_hours": 2, "tags": ["팀"]},
+            {"title": "굿즈 시안 제작", "description": "디자인", "estimated_hours": 8, "tags": ["제작"]},
+            {"title": "신청서 제출", "description": "온라인 접수", "estimated_hours": 0.5, "tags": ["제출"]},
+        ]
+
+    def chat_reply(self, context, message):
+        return "테스트 응답"
+
+
+def test_llm_decomposition_path(store, opp):
+    from src.execution.models import Goal
+    goal = Goal(id="g1", user_id="u1", opportunity_id=opp.id, title=opp.title, category=opp.category)
+    tasks = TaskDecomposer(store, llm_client=_FakeLLM()).decompose(goal, opp)
+    assert [t.title for t in tasks] == ["공고 꼼꼼히 읽기", "팀 꾸리기", "굿즈 시안 제작", "신청서 제출"]
+    assert store.get_goal("g1").meta["task_source"] == "gemini"
+
+
+def test_llm_failure_falls_back_to_template(store, opp):
+    from src.execution.models import Goal
+
+    class _BrokenLLM:
+        def decompose_tasks(self, *a, **k):
+            raise RuntimeError("api down")
+
+    goal = Goal(id="g2", user_id="u1", opportunity_id=opp.id, title=opp.title, category=opp.category)
+    tasks = TaskDecomposer(store, llm_client=_BrokenLLM()).decompose(goal, opp)
+    assert len(tasks) >= 4  # 템플릿으로 폴백
+    assert store.get_goal("g2").meta["task_source"] == "template"
 
 
 # --- "못했어"는 완료가 아니라 재계획 -----------------------------------------

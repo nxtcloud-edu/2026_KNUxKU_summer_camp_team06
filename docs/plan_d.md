@@ -103,31 +103,65 @@ Task가 마감 역산으로 박히고 인박스에 알림이 도착한 화면**�
 
 ---
 
-## 6. LLM 제공자 (AWS Bedrock / Strands)
+## 6. LLM 제공자 (Gemini / Bedrock / local)
 
-B 파트와 동일한 철학: **인터페이스 고정 + provider는 환경변수로 스위치.**
+B 파트와 동일한 철학: **인터페이스(`src/execution/llm.py`) 고정 + provider는 환경변수로 스위치.**
+3가지 모드가 있고 자동 감지된다:
 
-- 기본은 `local` 모드 — modules.py의 결정론 코어가 Task 분해/마감 역산/알림을 처리한다.
-  AWS/LLM 없이도 데모가 **항상** 돌아간다.
-- `EXECUTION_LLM_PROVIDER=bedrock`이고 `strands-agents`+`boto3`가 설치되면 `bedrock` 모드로,
-  `prompts.py`의 시스템 프롬프트를 받은 **Bedrock(Claude) 에이전트가 직접 도구를 호출**한다
-  (`create_calendar_event`, `send_notification`, `schedule_reminder`). 실패 시 조용히 local로 폴백.
-- 마감 파싱·일정 계산·진행률은 항상 순수 함수(R5) — LLM이 바뀌어도 이 계산은 그대로다.
+| provider | 조건 | LLM이 하는 일 |
+|---|---|---|
+| **gemini** (기본) | `.env`에 `GEMINI_API_KEY` 있음 | 공고 원문을 읽고 **Task 분해**, 자유 대화 응답 생성 |
+| **bedrock** | `EXECUTION_LLM_PROVIDER=bedrock` + strands/boto3 설치 | 시스템 프롬프트로 Bedrock(Claude)이 도구 직접 호출 |
+| **local** | 위 조건 모두 아님 | LLM 없이 카테고리 템플릿으로 분해 (항상 동작) |
+
+- **어떤 모드든 데모는 항상 돈다.** Gemini 호출이 실패하면(키 오류/네트워크) 자동으로
+  템플릿으로 폴백한다. 분해 방식은 `goal.meta["task_source"]`(`gemini`/`template`)로 확인 가능.
+- **마감 파싱·일정 배치·진행률은 항상 순수 함수(R5).** LLM은 "무엇을 할지(Task 내용)"만
+  제안하고, "언제 할지(날짜)"는 코드가 계산 → LLM이 바뀌어도 일정의 정확성은 코드가 보장.
 
 ```bash
-# AWS 확정 후
+# Gemini 모드 (기본, 권장) — .env에 키만 넣으면 됨
+#  GEMINI_API_KEY=<본인 키>   (Google AI Studio 발급)
+python -m src.execution.demo    # provider가 gemini로 뜨고, Gemini가 Task를 분해
+
+# Bedrock 모드 (AWS 확정 후)
 pip install strands-agents boto3
 export EXECUTION_LLM_PROVIDER=bedrock
-export BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0
-export AWS_REGION=us-west-2
+export BEDROCK_MODEL_ID=us.anthropic.claude-3-5-sonnet-20241022-v2:0 AWS_REGION=us-west-2
 ```
 
 ---
 
-## 7. MVP 범위 / 남은 것 (first draft 기준)
+## 7. Supabase(DB) 연동 지점
+
+MVP는 로컬 JSON(`src/execution/store.py`)에 저장한다. **E(프론트)·A(Supervisor)와 상태를
+공유하려면** 아래 테이블을 팀 Supabase에 두어야 한다 (안 하면 각자 메모리에만 존재해서
+프론트에서 캘린더/인박스가 안 보임):
+
+- `goals`, `plans`, `tasks` — 실행 목표/계획/할 일 (E가 Quest·Todo 화면에 표시)
+- `calendar_events` — **웹 캘린더의 데이터 소스** (E의 정책 캘린더 화면이 직접 읽음)
+- `notifications` — **인박스/알림의 데이터 소스** (E의 알림 UI가 직접 읽음)
+- `interventions`, `execution_memory` — 개입/실행 로그 (선택; 추적·분석용)
+- `users`, `opportunities` — A/B가 이미 채우면 참조만; 없으면 실행 시 스냅샷 저장
+
+연동 방법 (교체 지점은 `ExecutionStore` 내부뿐, 호출부는 그대로):
+1. `docs/supabase_schema.sql`을 Supabase SQL Editor에서 실행해 테이블 생성.
+2. `.env`에 접속 정보 추가:
+   ```
+   SUPABASE_URL=https://<프로젝트>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=<service_role 키>
+   ```
+3. `pip install supabase` 후 `ExecutionStore`와 같은 인터페이스의 `SupabaseExecutionStore`를
+   추가하고 `ExecutionAgent(store=SupabaseExecutionStore())`로 주입 → 나머지 코드 수정 불필요.
+
+> 발표(내일) 기준으로는 로컬 JSON으로 충분하다. Supabase는 **E의 화면과 실제로 연결하는
+> 단계**에서 필요하다. 팀 계정 접속정보(URL/KEY)를 받으면 `SupabaseExecutionStore`까지 붙일 수 있다.
+
+## 8. MVP 범위 / 남은 것 (first draft 기준)
 
 - ✅ Goal→Task→Plan→Calendar 등록, 예약 리마인드+Scheduler 전달, 정체 감지·개입·재계획, 완료 검증
-- ✅ 실제 공고 20건 전부 크래시 없이 실행 (카테고리·날짜형식 다양성 검증)
-- ⬜ Bedrock 실연동 스모크 테스트 (AWS 계정/모델 접근 확정 후)
-- ⬜ 슬래시 이외 예외 날짜 표기 추가 보강, 실제 웹 캘린더(Google Calendar) 연동
-- ⬜ E의 메인 Streamlit 앱에 실행 화면 통합
+- ✅ **Gemini API 실연동** (공고 원문 기반 Task 분해 + 자유 대화), 실패 시 자동 폴백
+- ✅ 실제 공고 20건 전부 크래시 없이 실행, pytest 11종 통과
+- ✅ Supabase 스키마(`docs/supabase_schema.sql`) 준비
+- ⬜ `SupabaseExecutionStore` 구현 (팀 Supabase 접속정보 확정 후)
+- ⬜ Bedrock 실연동 스모크 테스트, E의 Streamlit 앱에 실행 화면 통합

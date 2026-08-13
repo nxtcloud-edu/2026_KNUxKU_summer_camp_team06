@@ -86,8 +86,11 @@ def run_demo(store: ExecutionStore | None = None) -> ExecutionStore:
     _hr("STEP 1 · Goal → Task 분해 → 마감 역산 Plan → 캘린더 등록 (Calendar Tool)")
     result = agent.start(ctx)
     goal = result.goal
+    src = goal.meta.get("task_source", "template")
+    src_label = "🤖 Gemini가 공고 원문을 읽고 분해" if src == "gemini" else "📑 카테고리 템플릿으로 분해 (LLM 키 없음/폴백)"
     print(f"🎯 Goal 생성: {goal.title}")
     print(f"   마감(원문 '{opp.deadline_text}' 파싱) → {goal.deadline}")
+    print(f"   Task 분해 방식: {src_label}")
     print(f"   {result.plan.rationale}\n")
     print("📋 분해된 Task & 마감 역산 일정 (→ 캘린더 등록됨):")
     for t in result.tasks:

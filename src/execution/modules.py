@@ -187,20 +187,24 @@ _KEYWORD_TASKS: list[tuple[list[str], int, tuple[str, str, float, list[str]]]] =
 
 
 class TaskDecomposer:
-    def __init__(self, store: ExecutionStore):
+    def __init__(self, store: ExecutionStore, llm_client=None):
         self.store = store
+        self.llm_client = llm_client  # None이면 결정론 템플릿 사용
 
-    def decompose(self, goal: Goal, opportunity: Opportunity) -> list[Task]:
-        rows = list(_BASE_TEMPLATES.get(goal.category, _DEFAULT_TEMPLATE))
+    def decompose(self, goal: Goal, opportunity: Opportunity,
+                  user: Optional[UserProfile] = None) -> list[Task]:
+        rows = None
+        source = "template"
 
-        # 원문 키워드로 Task 추가 (뒤 인덱스부터 삽입해 위치가 밀리지 않게)
-        raw = opportunity.raw_text or ""
-        additions: list[tuple[int, tuple[str, str, float, list[str]]]] = []
-        for keywords, pos, task_row in _KEYWORD_TASKS:
-            if any(k in raw for k in keywords):
-                additions.append((pos, task_row))
-        for pos, task_row in sorted(additions, key=lambda x: x[0], reverse=True):
-            rows.insert(min(pos, len(rows)), task_row)
+        # 1) LLM(Gemini)이 있으면 공고 원문을 읽고 Task를 분해
+        if self.llm_client is not None:
+            rows = self._llm_rows(goal, opportunity, user)
+            if rows:
+                source = "gemini"
+
+        # 2) LLM이 없거나 실패하면 카테고리 템플릿 + 키워드 보강으로 폴백
+        if not rows:
+            rows = self._template_rows(goal, opportunity)
 
         tasks: list[Task] = []
         for i, (title, desc, hours, tags) in enumerate(rows):
@@ -215,9 +219,52 @@ class TaskDecomposer:
             )
             tasks.append(task)
             self.store.put_task(task)
+        goal.meta["task_source"] = source  # gemini | template (데모/프론트에서 표시용)
+        self.store.put_goal(goal)
         _remember(self.store, goal.user_id, goal.id, "tasks_created",
-                  f"{len(tasks)}개 Task로 분해")
+                  f"{len(tasks)}개 Task로 분해 ({source})")
         return tasks
+
+    def _llm_rows(self, goal: Goal, opportunity: Opportunity,
+                  user: Optional[UserProfile]):
+        """Gemini 응답을 (title, desc, hours, tags) 리스트로 검증·정규화. 실패 시 None."""
+        try:
+            from .models import UserProfile as _UP
+            u = user or _UP(user_id=goal.user_id)
+            deadline_str = str(goal.deadline.date()) if goal.deadline else "마감 정보 없음"
+            raw = self.llm_client.decompose_tasks(opportunity, u, deadline_str)
+        except Exception:
+            return None
+
+        rows: list[tuple[str, str, float, list[str]]] = []
+        for item in raw or []:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title", "")).strip()
+            if not title:
+                continue
+            desc = str(item.get("description", "")).strip()
+            try:
+                hours = float(item.get("estimated_hours", 1.0))
+            except (TypeError, ValueError):
+                hours = 1.0
+            hours = min(max(hours, 0.5), 12.0)  # 현실적 범위로 클램프
+            tags = item.get("tags") or []
+            if not isinstance(tags, list):
+                tags = [str(tags)]
+            rows.append((title, desc, hours, [str(t) for t in tags]))
+        return rows if len(rows) >= 2 else None  # 너무 적으면 신뢰 못 함 → 폴백
+
+    def _template_rows(self, goal: Goal, opportunity: Opportunity):
+        rows = list(_BASE_TEMPLATES.get(goal.category, _DEFAULT_TEMPLATE))
+        raw = opportunity.raw_text or ""
+        additions: list[tuple[int, tuple[str, str, float, list[str]]]] = []
+        for keywords, pos, task_row in _KEYWORD_TASKS:
+            if any(k in raw for k in keywords):
+                additions.append((pos, task_row))
+        for pos, task_row in sorted(additions, key=lambda x: x[0], reverse=True):
+            rows.insert(min(pos, len(rows)), task_row)
+        return rows
 
 
 # =============================================================================
