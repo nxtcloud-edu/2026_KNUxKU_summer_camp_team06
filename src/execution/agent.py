@@ -113,6 +113,11 @@ class ExecutionAgent:
 
         Goal 생성 → Task 분해 → 마감 역산 Plan → Calendar Tool로 전 일정 등록.
         auto_reminder=True면 마감 기본 리드타임(사용자 설정) 전에 리마인드도 예약한다.
+
+        ctx.decision.eligible을 여기서 다시 검사하지 않는다: A(Supervisor)가
+        eligible=True인 기회만 사용자에게 노출해 확정을 받으므로, 이 시점에는
+        이미 보장된 값이다. eligible=False가 여기 들어오는 걸 막는 건 상위(Supervisor)
+        책임이지 Execution Agent의 책임이 아니다.
         """
         goal = self.goal_manager.create_goal(ctx)
         tasks = self.decomposer.decompose(goal, ctx.opportunity, user=ctx.user)
