@@ -33,6 +33,15 @@
         ]
       },
       {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "구 분 | 차상위 이하",
+        "span": [
+          41,
+          53
+        ]
+      },
+      {
         "type": "income",
         "operator": "lte",
         "value": "기준 중위소득 50%",
@@ -50,16 +59,6 @@
         "span": [
           102,
           129
-        ]
-      },
-      {
-        "type": "status",
-        "operator": "lte",
-        "value": "차상위",
-        "raw_quote": "차상위 이하",
-        "span": [
-          47,
-          53
         ]
       }
     ],
@@ -148,7 +147,8 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "equals",
+        "value": "최종학력 졸업(중퇴)자",
         "raw_quote": "공고일 기준(2026년 02월 09일), 최종학력 졸업(중퇴)자",
         "span": [
           161,
@@ -157,7 +157,8 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "equals",
+        "value": "미취업자",
         "raw_quote": "공고일 기준(2026년 02월 09일), 미취업자",
         "span": [
           221,
@@ -180,15 +181,6 @@
         "span": [
           489,
           533
-        ]
-      },
-      {
-        "type": "duplicate",
-        "operator": "unknown",
-        "raw_quote": "기초생활보장제도 생계급여 및 실업급여 수급자",
-        "span": [
-          534,
-          558
         ]
       },
       {
@@ -273,28 +265,19 @@
         "type": "region",
         "operator": "equals",
         "value": "서울시",
-        "raw_quote": "신청일 기준 서울시 월세 거주",
+        "raw_quote": "서울시 월세 거주",
         "span": [
-          9,
+          16,
           25
         ]
       },
       {
         "type": "military",
         "operator": "unknown",
-        "raw_quote": "의무복무 제대군인 청년 대상, 군 복무기간을 고려하여 최대 3살까지 지원 연령 상한 연장",
+        "raw_quote": "의무복무 제대군인 청년 대상",
         "span": [
           43,
-          92
-        ]
-      },
-      {
-        "type": "duplicate",
-        "operator": "unknown",
-        "raw_quote": "서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
-        "span": [
-          95,
-          189
+          58
         ]
       },
       {
@@ -308,6 +291,15 @@
         "span": [
           355,
           383
+        ]
+      },
+      {
+        "type": "duplicate",
+        "operator": "unknown",
+        "raw_quote": "서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
+        "span": [
+          95,
+          189
         ]
       }
     ],
@@ -328,11 +320,12 @@
       },
       {
         "type": "region",
-        "operator": "unknown",
-        "raw_quote": "신청일 기준 경기도에 주민등록을 두고 최근 3년 이상 계속 거주 또는 합산 10년 이상 거주중인",
+        "operator": "equals",
+        "value": "경기도",
+        "raw_quote": "경기도 내 3년 이상 계속 거주 또는 합산 10년 이상 거주중인",
         "span": [
-          5,
-          58
+          75,
+          110
         ]
       }
     ],
@@ -391,7 +384,8 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "equals",
+        "value": "예비창업자",
         "raw_quote": "신청자 명의의 사업자등록증을 보유하고 있지 않으며, 법인의 법률상 대표권을 가지고 있지 않은 예비창업자(기준일 : '26.1.22.)",
         "span": [
           83,
@@ -429,8 +423,7 @@
       },
       {
         "type": "region",
-        "operator": "equals",
-        "value": "전국",
+        "operator": "unknown",
         "raw_quote": "전국 지원 가능",
         "span": [
           99,
@@ -439,15 +432,20 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "예비창업자",
-          "초기창업기업"
-        ],
+        "operator": "unknown",
         "raw_quote": "기후테크 분야 예비창업자 또는 초기창업기업",
         "span": [
           111,
           134
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "사업자등록을 하지 않은 전국 청년, 대학생(휴학생 포함)",
+        "span": [
+          145,
+          176
         ]
       }
     ],
@@ -478,21 +476,6 @@
           206,
           239
         ]
-      },
-      {
-        "type": "status",
-        "operator": "in",
-        "value": [
-          "개인",
-          "팀",
-          "단체",
-          "기업"
-        ],
-        "raw_quote": "참가유형: 개인·팀·단체·기업",
-        "span": [
-          98,
-          114
-        ]
       }
     ],
     "status": "ok"
@@ -512,11 +495,7 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "대학생",
-          "대학원생"
-        ],
+        "operator": "unknown",
         "raw_quote": "국내 대학 재학생 및 대학원생",
         "span": [
           140,
@@ -525,11 +504,7 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "외국인 유학생",
-          "휴학생"
-        ],
+        "operator": "unknown",
         "raw_quote": "외국인 유학생, 휴학생 참여 가능",
         "span": [
           159,
@@ -653,6 +628,16 @@
       {
         "type": "status",
         "operator": "equals",
+        "value": "청년 작가",
+        "raw_quote": "청년 작가",
+        "span": [
+          132,
+          137
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "equals",
         "value": "학사생",
         "raw_quote": "학사생",
         "span": [
@@ -734,51 +719,6 @@
           118,
           133
         ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "F&B 마케팅 혹은 음료 분야에 관심이 많은 분",
-        "span": [
-          138,
-          164
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "SNS 활동 및 트렌드 탐색 활발한 분",
-        "span": [
-          169,
-          190
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "3개월 간 성실한 태도로 책임감 있게 활동 가능한 분",
-        "span": [
-          195,
-          224
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "개인 채널 운영자 (유튜브, 블로그, 인스타그램 등)",
-        "span": [
-          238,
-          267
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "영상/포토샵 편집 경험자",
-        "span": [
-          272,
-          285
-        ]
       }
     ],
     "status": "ok"
@@ -818,28 +758,28 @@
         "type": "status",
         "operator": "equals",
         "value": "대학생",
-        "raw_quote": "모집대상: 대학생 누구나(전공 무관)",
+        "raw_quote": "대학생 누구나(전공 무관)",
         "span": [
-          10,
+          16,
           30
         ]
       },
       {
         "type": "etc",
         "operator": "unknown",
-        "raw_quote": "우대사항: SNS 운영자, 대외활동 및 서포터즈 경력자",
+        "raw_quote": "2026. 4. 4.(토) 간담회 참석 가능자",
         "span": [
-          80,
-          110
+          119,
+          144
         ]
       },
       {
         "type": "etc",
         "operator": "unknown",
-        "raw_quote": "지원요건: 2026. 4. 4.(토) 간담회 참석 가능자",
+        "raw_quote": "SNS 운영자, 대외활동 및 서포터즈 경력자",
         "span": [
-          113,
-          144
+          86,
+          110
         ]
       }
     ],
@@ -889,7 +829,11 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "in",
+        "value": [
+          "재학생",
+          "휴학생"
+        ],
         "raw_quote": "대학생 재·휴학생",
         "span": [
           70,
@@ -903,42 +847,6 @@
         "span": [
           82,
           122
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "영어 문서 해석 및 글쓰기 역량 우수자",
-        "span": [
-          244,
-          265
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "블로그 마케팅, 키워드 마케팅에 대한 이해도가 있는 사람",
-        "span": [
-          268,
-          299
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "사회·경제·문화 트렌드에 관심 있는 사람",
-        "span": [
-          302,
-          324
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "개인 블로그 운영 경험자",
-        "span": [
-          327,
-          340
         ]
       }
     ],
@@ -959,11 +867,7 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "대학생",
-          "휴학생"
-        ],
+        "operator": "unknown",
         "raw_quote": "문화 콘텐츠에 관심있는 모든 국내 대학생 (휴학생 포함)",
         "span": [
           77,
@@ -1011,28 +915,10 @@
   },
   {
     "opportunity_id": "opp-bootcamp-01",
-    "content_category": "opportunity",
-    "conditions": [
-      {
-        "type": "status",
-        "operator": "unknown",
-        "raw_quote": "학력과 전공은 중요하지 않습니다.",
-        "span": [
-          243,
-          261
-        ]
-      },
-      {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "6월 24일부터 8월 30일까지 10주간 우아한테크캠프에 풀타임으로 참여할 수 있는 분이어야 합니다.",
-        "span": [
-          322,
-          378
-        ]
-      }
-    ],
-    "status": "ok"
+    "content_category": "general_info",
+    "conditions": [],
+    "status": "ok",
+    "notes": "지원 자격이나 마감 조건이 없음 — 지원사업이 아닌 정보성 콘텐츠로 분류됨 (C의 적격 판정 불필요)"
   },
   {
     "opportunity_id": "opp-bootcamp-02",
@@ -1059,10 +945,10 @@
       {
         "type": "status",
         "operator": "unknown",
-        "raw_quote": "9시부터 18시까지 진행되는 실시간 강의에 참여 가능하신 분 (대학생의 경우 휴학 후 참여 가능)",
+        "raw_quote": "대학생의 경우 휴학 후 참여 가능",
         "span": [
-          47,
-          101
+          82,
+          100
         ]
       }
     ],

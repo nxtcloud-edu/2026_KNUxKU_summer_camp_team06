@@ -52,6 +52,27 @@ def test_b_row_and_d_opportunity_connect_to_a_pass_execution_decision():
     assert decision.eligible is True
 
 
+def test_supabase_opportunity_uuid_is_preserved_through_c_to_d_handoff():
+    opportunity_id = "6f3b9861-5b35-47fa-b729-7b2f9ca2ea12"
+    normalization = normalization_from_db_row(
+        {
+            "opportunity_id": opportunity_id,
+            "content_category": "opportunity",
+            "conditions": [{"type": "status", "operator": "equals", "value": "student", "raw_quote": "student", "span": [0, 7]}],
+            "status": "ok",
+        }
+    )
+    opportunity = Opportunity(id=opportunity_id, title="UUID 공고", category="bootcamp")
+    result = evaluate_opportunity(
+        profile_for_decision(UserProfile(user_id="u1", status="student")),
+        decision_input_from_opportunity(opportunity, normalization),
+        date(2026, 8, 13),
+    )
+
+    decision = execution_decision_for_selected(user_id="u1", result=result)
+    assert decision.opportunity_id == opportunity_id
+
+
 def test_execution_agent_rejects_unknown_or_failed_eligibility():
     normalization = NormalizationResult.model_validate(
         {

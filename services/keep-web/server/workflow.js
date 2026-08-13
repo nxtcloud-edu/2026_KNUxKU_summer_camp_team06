@@ -1,5 +1,5 @@
 import { createPlatformAgent } from './agents/platform-agents.js';
-import { GeminiNormalizationAgent } from './agents/normalization-agent.js';
+import { PythonBridgeNormalizationAgent } from './agents/python-bridge-agent.js';
 import { ValidationService } from './validation.js';
 
 const MAX_ACTIVE_INTAKES_PER_USER = 2;
@@ -27,7 +27,7 @@ export async function processIntake(store, intakeId, session) {
     const extracted = agent.extract(intake.page_evidence);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, { status: 'NORMALIZING' }, userId, accessToken);
-    const normalized = await new GeminiNormalizationAgent().normalize(extracted);
+    const normalized = await new PythonBridgeNormalizationAgent().normalize(extracted);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, { status: 'VALIDATING' }, userId, accessToken);
     const validation = new ValidationService().validate(normalized);
@@ -48,6 +48,8 @@ export async function processIntake(store, intakeId, session) {
       evidence: normalized.evidence,
       confidence: normalized.confidence,
       normalization_method: normalized.normalization_method,
+      content_category: normalized.content_category,
+      conditions: normalized.conditions,
       status: validation.ok ? 'READY_FOR_REVIEW' : 'NEEDS_REVIEW',
       needs_review: !validation.ok,
       error_codes: validation.errors
@@ -55,6 +57,13 @@ export async function processIntake(store, intakeId, session) {
     const opportunity = duplicate
       ? await store.updateOpportunity(duplicate.id, opportunityData, userId, accessToken)
       : await store.createOpportunity(opportunityData, userId, accessToken);
+    await store.upsertNormalizedOpportunity({
+      opportunity_id: opportunity.id,
+      content_category: normalized.content_category || null,
+      conditions: normalized.conditions || [],
+      status: normalized.status === 'failed' ? 'failed' : normalized.status === 'partial' ? 'partial' : 'ok',
+      notes: normalized.notes || null
+    }, userId, accessToken);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, {
       status: validation.ok ? 'READY_FOR_REVIEW' : 'NEEDS_REVIEW',

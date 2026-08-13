@@ -63,6 +63,9 @@ test('Keep payload가 Agent를 거쳐 웹 목록에 나타난다', async (t) => 
   assert.equal(list.items[0].deadline, '2026-09-30');
   assert.equal(list.items[0].normalization_method, 'rules');
   assert.equal(list.items[0].intake_id, acceptedBody.intake_id);
+  const normalizations = app.store.listNormalizedOpportunities('local-test-user');
+  assert.equal(normalizations.length, 1);
+  assert.equal(normalizations[0].opportunity_id, list.items[0].id);
 });
 
 test('Threads 분류와 동일 URL 중복 방지를 확인한다', async (t) => {

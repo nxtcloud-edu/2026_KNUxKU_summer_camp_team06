@@ -18,7 +18,27 @@ from src.c_integration import execution_decision_for_selected
 from src.recommendation_service import ProfileSubmission, RecommendationService
 
 
-def service() -> RecommendationService:
+def opportunity_record(row: dict) -> dict:
+    """Adapt KEEP:ON public.opportunities to D's Opportunity input contract."""
+    return {
+        "id": str(row["id"]),
+        "title": row.get("title") or "정리가 필요한 저장 항목",
+        "org": row.get("author"),
+        "category": row.get("category") or "기타",
+        "url": row.get("source_url") or row.get("canonical_url"),
+        "raw_text": row.get("body") or row.get("summary") or "",
+        "deadline_text": row.get("deadline"),
+        "collected_at": row.get("created_at"),
+    }
+
+
+def service(request: dict) -> RecommendationService:
+    opportunities = request.get("opportunities")
+    normalizations = request.get("normalizations")
+    if isinstance(opportunities, list) and isinstance(normalizations, list):
+        return RecommendationService.from_b_records(
+            [opportunity_record(row) for row in opportunities], normalizations
+        )
     return RecommendationService.from_b_files(
         ROOT / "data" / "opportunities.json",
         ROOT / "data" / "normalization_results.json",
@@ -38,7 +58,7 @@ def profile_for_execution(user_id: str, payload: dict) -> UserProfile:
 
 
 def run(request: dict) -> dict:
-    agent_service = service()
+    agent_service = service(request)
     command = request["command"]
     if command == "dashboard":
         items = agent_service.dashboard(
@@ -63,7 +83,11 @@ def run(request: dict) -> dict:
 
     if command == "execution":
         decision = execution_decision_for_selected(user_id=request["user_id"], result=decision_result)
-        records = json.loads((ROOT / "data" / "opportunities.json").read_text(encoding="utf-8"))["opportunities"]
+        records = request.get("opportunities")
+        if isinstance(records, list):
+            records = [opportunity_record(row) for row in records]
+        else:
+            records = json.loads((ROOT / "data" / "opportunities.json").read_text(encoding="utf-8"))["opportunities"]
         record = next((item for item in records if item["id"] == decision.opportunity_id), None)
         if record is None:
             raise ValueError("Selected opportunity ID is not available to the execution agent.")
