@@ -3,7 +3,7 @@ import { formatPlanDate, planFor, type PlanTask } from '@/lib/planStore';
 
 /** 챗 시작 화면의 추천 질문 3개 (맥락 없음) */
 export const GENERAL_SUGGESTIONS = [
-  '이번 주에 마감되는 기회 알려줘',
+  '이번 주에 마감되는 공고 알려줘',
   '지금 뭐부터 하면 돼?',
   '확인이 필요한 조건이 뭐야?',
 ] as const;
@@ -57,7 +57,7 @@ function scheduleAnswer(item: Opportunity, tasks: PlanTask[]) {
 
 function weeklyAnswer(overrides: AnswerContext['planOverrides']) {
   const soon = opportunities.filter((item) => item.dDay !== null && item.dDay <= 7);
-  if (!soon.length) return '이번 주에 마감되는 기회는 없어요. 다음 주 마감은 실행 계획 화면에서 확인할 수 있어요.';
+  if (!soon.length) return '이번 주에 마감되는 공고는 없어요. 다음 주 마감은 실행 계획 화면에서 확인할 수 있어요.';
   const lines = soon
     .map((item) => {
       const tasks = overrides ? planFor(item, overrides) : [];
@@ -65,7 +65,7 @@ function weeklyAnswer(overrides: AnswerContext['planOverrides']) {
       return `· ${dDayLabel(item)} — ${item.title}${next ? ` / 다음: ${next.title}` : ''}`;
     })
     .join('\n');
-  return `7일 안에 마감되는 기회는 ${soon.length}건이에요.\n\n${lines}`;
+  return `7일 안에 마감되는 공고는 ${soon.length}건이에요.\n\n${lines}`;
 }
 
 function needsCheckAnswer() {

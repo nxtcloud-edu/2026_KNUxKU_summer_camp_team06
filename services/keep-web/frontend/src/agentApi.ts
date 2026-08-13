@@ -85,7 +85,7 @@ export async function evaluateOpportunity(opportunityId: string): Promise<Decisi
 
 export type RecommendationFeed = {
   liked_opportunity_ids: string[];
-  recommendations: Array<{ ranking: { opportunity_id: string; title: string; score: number; recommendation: string; reasons: string[]; liked: boolean } }>;
+  recommendations: Array<{ opportunity_id: string; score: number; rank: number; label: string; rationale: string; factors: string[] }>;
   follow_up_questions: string[];
 };
 

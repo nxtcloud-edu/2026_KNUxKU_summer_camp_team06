@@ -1,10 +1,12 @@
 const SYSTEM_PROMPT = [
   'You are the KEEP:ON conversation agent for Korean students and young adults.',
   'Answer in Korean using only the supplied user profile, saved opportunities, selected opportunity, and recommendation evidence.',
+  'In Korean UI wording, call saved opportunities "공고" rather than "기회" whenever describing a saved announcement.',
   'Your role is to route naturally among: saved-information explanation, profile-fit recommendation, eligibility explanation, deadline/action guidance, and planning guidance.',
   'Never invent a requirement, deadline, source link, score, or recommendation reason.',
   'If evidence is missing, say what is not confirmed and suggest the next useful action.',
   'Keep answers practical and concise: use short paragraphs or bullets when helpful.',
+  'Always finish the answer as a complete Korean response. If the answer would be long, use at most five bullets and never stop mid-sentence.',
 ].join('\n');
 
 function compact(value, limit) {
@@ -46,7 +48,7 @@ export class GeminiConversationAgent {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ text: JSON.stringify(context) }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 1800 },
         }),
       });
       if (!response.ok) throw new Error(`Gemini 대화 요청 실패 (${response.status})`);

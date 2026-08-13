@@ -94,7 +94,7 @@ function HomePage({ loading }: { loading: boolean }) {
       {joined.length > 0 && (
         <DashboardRail title="참여하기로 한 기회" subtitle="결정한 기회의 다음 단계를 이어가세요" items={joined} />
       )}
-      <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
+      <DashboardRail title="오늘 확인할 공고" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
       <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay !== null && item.dDay <= 11)} />
       </>}
       <button
@@ -110,15 +110,33 @@ function HomePage({ loading }: { loading: boolean }) {
         <img src="/ai-recommendation.png" alt="" />
         <span><b>AI 추천</b><small>{likedIds.length ? `좋아요 ${likedIds.length}개 기준` : '하트를 눌러 시작'}</small></span>
       </button>
+      {recommendationState === 'loading' && (
+        <AgentProgressCard
+          className="ai-recommend-progress"
+          title="추천 에이전트가 좋아요한 공고를 분석하고 있어요"
+          activeStep={1}
+          steps={[
+            { label: '좋아요한 공고 확인', detail: '선택한 공고만 모으는 중' },
+            { label: '프로필과 공고 비교', detail: '관심사·일정·정보를 분석 중' },
+            { label: '추천 순위 정리', detail: '카드로 준비 중' },
+          ]}
+        />
+      )}
       {(recommendations || recommendationState === 'error') && (
         <section className="ai-recommend-panel">
-          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 정보와 내 프로필을 비교했어요</h3></div>
-          {recommendations?.recommendations.map(({ ranking }) => {
+          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 공고를 Gemini가 평가했어요</h3><p className="ai-recommend-method">관심사, 프로필 적합도, 마감 임박도, 공고 정보의 구체성을 근거로 100점 만점으로 정렬했어요.</p></div>
+          <div className="ai-recommend-cards">
+          {recommendations?.recommendations.map((ranking) => {
             const item = opportunities.find((candidate) => candidate.id === ranking.opportunity_id);
-            return item ? <Link to={`/saved/${item.id}`} key={item.id} className="ai-recommend-row"><strong>{ranking.score}점</strong><span><b>{item.title}</b><small>{ranking.reasons.slice(0, 2).join(' · ')}</small></span></Link> : null;
+            return item ? <Link to={`/saved/${item.id}`} key={item.id} className="ai-recommend-card">
+              <div className="ai-recommend-card-head"><span>#{ranking.rank}</span><strong>{ranking.score}점</strong></div>
+              <em>{ranking.label}</em><b>{item.title}</b><p>{ranking.rationale}</p>
+              {ranking.factors.length > 0 && <small>{ranking.factors.join(' · ')}</small>}
+            </Link> : null;
           })}
+          </div>
           {recommendations?.follow_up_questions.map((question) => <p key={question} className="ai-recommend-note">{question}</p>)}
-          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천을 만들지 못했어요. 프로필을 채운 뒤 다시 시도해 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
+          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
         </section>
       )}
     </div>
@@ -262,9 +280,6 @@ function SavedPage() {
       {uploads.length > 0 && (
         <div className="upload-queue" aria-live="polite">
           {uploads.map((file) => <UploadProgress key={file.id} file={file} />)}
-          <span className="upload-queue-note">
-            파일은 내 저장소에 보관되고 Gemini가 내용을 읽어 저장 정보로 정리합니다.
-          </span>
         </div>
       )}
       <div className="library-toolbar">
@@ -690,13 +705,18 @@ function ChatPage() {
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ id: number; role: 'assistant' | 'user'; text: string }>>([]);
+  const [usedSuggestions, setUsedSuggestions] = useState<Set<string>>(() => new Set());
   const askedRef = useRef<string | null>(null);
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, usedSuggestion = false) => {
     const value = text.trim();
     if (!value) return;
+    if (usedSuggestion) setUsedSuggestions((current) => new Set(current).add(value));
     const id = Date.now();
-    setMessages((current) => [...current, { id, role: 'user', text: value }, { id: id + 1, role: 'assistant', text: '답변을 정리하고 있어요…' }]);
+    const preparing = likedIds.length && /추천|적합|뭐부터|이번 주|마감/.test(value)
+      ? '추천 에이전트와 일정 정보를 확인해 답변을 준비하고 있어요…'
+      : '대화 에이전트가 저장한 공고를 확인해 답변을 준비하고 있어요…';
+    setMessages((current) => [...current, { id, role: 'user', text: value }, { id: id + 1, role: 'assistant', text: preparing }]);
     setInput('');
     try {
       const answer = await askConversation(value, item?.id || null, likedIds);
@@ -768,8 +788,8 @@ function ChatPage() {
         </div>
 
         <div className="suggestions">
-          {suggestions.map((suggestion) => (
-            <button type="button" key={suggestion} onClick={() => void send(suggestion)}>
+          {suggestions.filter((suggestion) => !usedSuggestions.has(suggestion)).map((suggestion) => (
+            <button type="button" key={suggestion} onClick={() => void send(suggestion, true)}>
               {suggestion}<ArrowUpRight size={14} />
             </button>
           ))}
@@ -779,7 +799,7 @@ function ChatPage() {
           <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="예: 이번 주에 뭘 먼저 해야 해?" />
           <button type="submit" aria-label="메시지 보내기"><Send size={18} /></button>
         </form>
-        <p className="ai-disclaimer">저장한 원문과 일정만 근거로 답해요. 중요한 조건은 원문에서 다시 확인해 주세요.</p>
+        <p className="ai-disclaimer">저장한 공고, 프로필, 좋아요한 공고를 근거로 답해요. 중요한 조건은 원문에서 다시 확인해 주세요.</p>
       </section>
     </div>
   );
