@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Bell, Bookmark, CalendarDays, CheckCircle2, Compass, MessageCircle, X } from 'lucide-react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useSearchParams } from 'react-router-dom';
+
+import { IntakeProgress } from './storage/IntakeProgress';
+import { useIntakeStatus } from '../lib/useIntakeStatus';
+import { useNotifications } from '../lib/notifications';
 
 const navigation = [
   { to: '/', label: '오늘', icon: Compass },
@@ -22,6 +26,19 @@ const titles: Record<string, string> = {
 export function AppShell() {
   const location = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // 확장프로그램은 Keep 직후 /?intake_id=... 로 웹을 연다. 어느 화면에서든 처리 상태를 보여준다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [dismissedIntake, setDismissedIntake] = useState<string | null>(null);
+  const intakeParam = searchParams.get('intake_id');
+  const intakeId = intakeParam && intakeParam !== dismissedIntake ? intakeParam : null;
+  const intake = useIntakeStatus(intakeId);
+  const dismissIntake = () => {
+    setDismissedIntake(intakeParam);
+    const next = new URLSearchParams(searchParams);
+    next.delete('intake_id');
+    setSearchParams(next, { replace: true });
+  };
+  const { notices, unreadCount, isRead, markRead, markAllRead } = useNotifications();
   const rootPath = '/' + location.pathname.split('/').filter(Boolean)[0];
   const pageTitle = titles[location.pathname] || titles[rootPath] || 'KEEP:ON';
 
@@ -35,24 +52,51 @@ export function AppShell() {
           </nav>
           <span className="top-page-title">{pageTitle}</span>
           <div className="topbar-actions">
-            <button className="icon-button notification-trigger" type="button" onClick={() => setNotificationsOpen((open) => !open)} aria-label="알림">
-              <Bell size={19} /><span className="unread-dot" />
+            <button
+              className="icon-button notification-trigger"
+              type="button"
+              onClick={() => setNotificationsOpen((open) => !open)}
+              aria-label={unreadCount > 0 ? `알림 ${unreadCount}건` : '알림'}
+            >
+              <Bell size={19} />
+              {unreadCount > 0 && <span className="unread-dot" />}
             </button>
             <NavLink to="/profile" className="top-avatar" aria-label="내 정보">수</NavLink>
           </div>
           <div className={`notification-popover ${notificationsOpen ? 'is-open' : ''}`}>
-            <div className="popover-head"><strong>알림</strong><button type="button" onClick={() => setNotificationsOpen(false)} aria-label="알림 닫기"><X size={16} /></button></div>
-            <div className="notice-item accent-yellow"><span>D-2</span><p><strong>AWS AI Challenge</strong> 마감이 이틀 남았어요.</p></div>
-            <div className="notice-item accent-blue"><span>오늘</span><p>아이디어 한 문장을 정리할 차례예요.</p></div>
+            <div className="popover-head">
+              <strong>알림{unreadCount > 0 ? ` ${unreadCount}` : ''}</strong>
+              <div className="popover-head-actions">
+                {unreadCount > 0 && (
+                  <button type="button" className="popover-mark-all" onClick={markAllRead}>모두 읽음</button>
+                )}
+                <button type="button" onClick={() => setNotificationsOpen(false)} aria-label="알림 닫기"><X size={16} /></button>
+              </div>
+            </div>
+            {notices.length === 0 && (
+              <p className="notice-empty">지금 확인할 알림이 없어요. 마감 7일·3일·1일 전과 오늘 할 단계를 여기로 알려드려요.</p>
+            )}
+            {notices.map((notice) => (
+              <Link
+                key={notice.id}
+                to={notice.to}
+                className={`notice-item tone-${notice.tone} ${isRead(notice.id) ? 'is-read' : ''}`}
+                onClick={() => { markRead(notice.id); setNotificationsOpen(false); }}
+              >
+                <span>{notice.badge}</span>
+                <p><strong>{notice.title}</strong> {notice.body}</p>
+              </Link>
+            ))}
           </div>
         </header>
         <main className="content">
+          <IntakeProgress state={intake.state} onRetry={intake.retry} onDismiss={dismissIntake} />
           <div key={location.pathname} className="page-enter"><Outlet /></div>
         </main>
       </div>
 
       <nav className="bottom-nav" aria-label="모바일 주요 메뉴">
-        {navigation.slice(0, 4).map(({ to, label, icon: Icon }) => (
+        {navigation.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'is-active' : ''}><Icon size={20} /><span>{label}</span></NavLink>
         ))}
       </nav>

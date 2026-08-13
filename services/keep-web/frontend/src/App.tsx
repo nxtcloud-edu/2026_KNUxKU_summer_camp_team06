@@ -1,22 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Archive,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
-  Bookmark,
   CalendarDays,
   Check,
+  Clock3,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   FileText,
   Filter,
-  LayoutGrid,
-  List,
+  MessageCircleQuestion,
   MoreHorizontal,
   Pin,
-  Plus,
   Search,
   Send,
   Settings2,
@@ -25,23 +22,62 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
-import { calendarEvents, opportunities, type Opportunity } from './data';
-import { evaluateOpportunity, loadProfile, saveProfile, startExecution } from './agentApi';
+import { CalendarPage } from './pages/CalendarPage';
+import { opportunities, type Opportunity } from './data';
+import { startExecution } from './agentApi';
+import { EligibilityEvidence } from './components/opportunity/EligibilityEvidence';
+import { useEligibility, type EligibilityHandle } from './lib/useEligibility';
+import {
+  allPlans,
+  formatPlanDate,
+  parseDeadline,
+  planFor,
+  setTaskDone,
+  usePlanOverrides,
+} from './lib/planStore';
+import {
+  DECISION_LABEL,
+  resolveDecision,
+  setDecision,
+  snoozeDate,
+  useDecisions,
+  type DecisionState,
+} from './lib/decisionStore';
+import { decisionOf } from './lib/decisionView';
+import { SavedEmptyState, type SavedEmptyVariant } from './components/storage/SavedEmptyState';
+import { ProfileImpact } from './components/profile/ProfileImpact';
+import { ProfileOnboarding } from './components/profile/ProfileOnboarding';
+import { answerFor, GENERAL_SUGGESTIONS, OPPORTUNITY_SUGGESTIONS } from './lib/chatContext';
+import { isOnboardingDone, markOnboardingDone, missingRequired, patchProfile, useStoredProfile } from './lib/profileStore';
+import { matchesAnyField } from './lib/koreanSearch';
+import { useRecentQueries } from './lib/recentQueries';
 
 function HomePage() {
+  const decisions = useDecisions();
+  // 보관한 기회는 추천에서 빠져야 목록이 정리되는 느낌이 생긴다.
+  const active = useMemo(
+    () => opportunities.filter((item) => decisionOf(decisions, item) !== 'archived'),
+    [decisions],
+  );
+  const joined = active.filter((item) => decisionOf(decisions, item) === 'joined');
+
   return (
     <div className="page home-page">
       <header className="home-intro">
-        <p className="section-label">8월 13일 목요일</p>
+        <p className="section-label">
+          {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+        </p>
         <h2>수정님을 위해<br />기회를 <em>정리했어요</em></h2>
         <p>저장한 정보 중 지금 확인하면 좋은 기회를 분류해 두었어요.</p>
       </header>
 
-      <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={opportunities} />
-      <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={opportunities.filter((item) => item.dDay <= 11)} />
-      <DashboardRail title="수정님의 관심 분야" subtitle="클라우드와 콘텐츠 경험을 이어갈 수 있는 추천이에요" items={[opportunities[1], opportunities[3], opportunities[0]]} />
+      {joined.length > 0 && (
+        <DashboardRail title="참여하기로 한 기회" subtitle="결정한 기회의 다음 단계를 이어가세요" items={joined} />
+      )}
+      <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
+      <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay <= 11)} />
     </div>
   );
 }
@@ -81,7 +117,9 @@ function SavedPage() {
   const [filter, setFilter] = useState('전체');
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; preview?: string }>>([]);
   const [savedFile, setSavedFile] = useState<{ name: string; preview?: string } | null>(null);
-  const filters = ['전체', '마감 임박', '확인 필요', '참여 결정'];
+  const decisions = useDecisions();
+  const recent = useRecentQueries();
+  const filters = ['전체', '마감 임박', '확인 필요', '참여 결정', '나중에', '보관'];
   const addFiles = (files: FileList | File[]) => {
     const added = Array.from(files).map((file, index) => ({
       id: `${Date.now()}-${index}-${file.name}`,
@@ -94,13 +132,33 @@ function SavedPage() {
     window.setTimeout(() => setSavedFile(null), 1650);
   };
   const filtered = useMemo(() => opportunities.filter((item) => {
-    const matchesQuery = [item.title, item.organization, item.category].join(' ').toLowerCase().includes(query.toLowerCase());
-    const matchesFilter = filter === '전체'
-      || (filter === '마감 임박' && item.dDay <= 7)
-      || (filter === '확인 필요' && item.id === 'youth-rent')
-      || (filter === '참여 결정' && item.id === 'aws-ai-challenge');
+    // 초성('ㅋㄹㄷ')과 붙여쓴 검색어('클라우드캠퍼스')도 찾을 수 있어야 한다.
+    const matchesQuery = matchesAnyField(
+      [item.title, item.organization, item.category, item.reason, item.summary],
+      query,
+    );
+    const decision = decisionOf(decisions, item);
+    // 보관한 항목은 '보관' 탭에서만 보여 목록이 계속 늘어나지 않게 한다.
+    const matchesFilter = filter === '보관'
+      ? decision === 'archived'
+      : decision !== 'archived' && (
+        filter === '전체'
+        || (filter === '마감 임박' && item.dDay <= 7)
+        || (filter === '확인 필요' && item.verdict === 'needsCheck')
+        || (filter === '참여 결정' && decision === 'joined')
+        || (filter === '나중에' && decision === 'later')
+      );
     return matchesQuery && matchesFilter;
-  }), [filter, query]);
+  }), [decisions, filter, query]);
+
+  // 첫 사용자(0건)와 필터 결과 0건은 다른 화면이어야 한다.
+  const emptyVariant = useMemo<SavedEmptyVariant>(() => {
+    if (!opportunities.length) return 'firstRun';
+    const visible = opportunities.filter((item) => decisionOf(decisions, item) !== 'archived');
+    if (!visible.length) return filter === '보관' ? 'emptyTab' : 'allArchived';
+    if (query.trim() || filter === '전체') return 'noResults';
+    return 'emptyTab';
+  }, [decisions, filter, query]);
 
   return (
     <div className="page">
@@ -115,29 +173,78 @@ function SavedPage() {
         <span><strong>저장한 파일을 여기로 끌어다 놓으세요</strong><small>이미지, PDF, 텍스트 파일을 추가하면 기회 정보로 정리해드려요.</small></span>
         <span className="upload-action">파일 선택</span>
       </label>
-      {uploads.length > 0 && <div className="upload-queue" aria-live="polite">{uploads.map((file) => <span key={file.id}><Check size={14} />{file.name}<small>분석 대기</small></span>)}</div>}
+      {uploads.length > 0 && (
+        <div className="upload-queue" aria-live="polite">
+          {uploads.map((file) => (
+            <span key={file.id}><Check size={14} />{file.name}<small>이 브라우저에만 저장됨</small></span>
+          ))}
+          <span className="upload-queue-note">
+            처리 단계를 실시간으로 보려면 확장프로그램의 <strong>현재 페이지 Keep</strong>을 사용하세요.
+          </span>
+        </div>
+      )}
       <div className="library-toolbar">
-        <label className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목, 기관, 분야 검색" /></label>
+        <label className="search-field">
+          <Search size={18} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onBlur={() => recent.remember(query)}
+            onKeyDown={(event) => { if (event.key === 'Enter') recent.remember(query); }}
+            placeholder="제목, 기관, 분야 검색 (초성도 가능해요)"
+          />
+          {query && (
+            <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label="검색어 지우기">
+              <X size={15} />
+            </button>
+          )}
+        </label>
         <button className="filter-button" type="button"><Filter size={17} />정렬</button>
       </div>
+      {recent.items.length > 0 && (
+        <div className="recent-queries">
+          <span>최근 검색</span>
+          {recent.items.map((item) => (
+            <span key={item} className="recent-chip">
+              <button type="button" onClick={() => setQuery(item)}>{item}</button>
+              <button type="button" onClick={() => recent.forget(item)} aria-label={`${item} 검색어 삭제`}><X size={12} /></button>
+            </span>
+          ))}
+          <button type="button" className="recent-clear" onClick={recent.clear}>전체 삭제</button>
+        </div>
+      )}
       <div className="filter-tabs" role="tablist" aria-label="저장 정보 필터">
         {filters.map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={filter === item ? 'is-active' : ''}>{item}</button>)}
       </div>
       <div className="library-summary"><strong>{filtered.length}</strong><span>개의 저장 정보</span></div>
       <div className="opportunity-list">
-        {filtered.map((item) => <OpportunityRow key={item.id} item={item} />)}
+        {filtered.map((item) => <OpportunityRow key={item.id} item={item} decision={decisionOf(decisions, item)} />)}
       </div>
-      {!filtered.length && <div className="empty-state"><Bookmark size={24} /><strong>조건에 맞는 정보가 없어요</strong><p>다른 검색어나 필터를 선택해 보세요.</p></div>}
+      {!filtered.length && (
+        <SavedEmptyState
+          variant={emptyVariant}
+          filter={filter}
+          query={query}
+          hasQuery={query.trim().length > 0}
+          onClearQuery={() => setQuery('')}
+          onResetFilter={() => { setFilter('전체'); setQuery(''); }}
+          onShowArchived={() => setFilter('보관')}
+        />
+      )}
       {savedFile && <div className="upload-save-overlay" role="status" aria-live="polite"><div className="upload-save-card"><div className="upload-save-thumb">{savedFile.preview ? <img src={savedFile.preview} alt="" /> : <FileText size={28} />}</div><div><span><CheckCircle2 size={16} /> 정리함에 저장했어요</span><strong>{savedFile.name}</strong><small>내용을 읽고 기회 정보로 정리하는 중이에요.</small></div></div></div>}
     </div>
   );
 }
 
-function OpportunityRow({ item }: { item: Opportunity }) {
+function OpportunityRow({ item, decision }: { item: Opportunity; decision: DecisionState }) {
   return (
     <Link to={`/saved/${item.id}`} className={`opportunity-row accent-${item.accent}`}>
       <div className="row-main">
-        <div className="row-meta"><span>{item.category}</span><span>{item.savedFrom} · {item.savedAt} 저장</span></div>
+        <div className="row-meta">
+          <span>{item.category}</span>
+          {decision !== 'none' && <span className={`row-decision is-${decision}`}>{DECISION_LABEL[decision]}</span>}
+          <span>{item.savedFrom} · {item.savedAt} 저장</span>
+        </div>
         <h3>{item.title}</h3>
         <p>{item.organization}</p>
       </div>
@@ -152,6 +259,12 @@ function OpportunityDetailPage() {
   const { id } = useParams();
   const item = opportunities.find((opportunity) => opportunity.id === id);
   if (!item) return <Navigate to="/saved" replace />;
+  return <OpportunityDetail item={item} />;
+}
+
+function OpportunityDetail({ item }: { item: Opportunity }) {
+  // 근거 카드와 결정 버튼이 판정 결과를 공유한다. 요청은 한 번만 나간다.
+  const eligibility = useEligibility(item.id);
   return (
     <div className="page detail-page">
       <Link to="/saved" className="back-link"><ArrowLeft size={17} />저장 목록</Link>
@@ -170,48 +283,168 @@ function OpportunityDetailPage() {
       <div className="detail-columns">
         <div className="detail-main">
           <section className="content-section"><h3>어떤 기회인가요?</h3><p>{item.summary}</p></section>
-          <section className="content-section"><h3>참여 조건</h3><ul className="check-list">{item.eligibility.map((condition) => <li key={condition}><Check size={16} />{condition}</li>)}</ul></section>
+          <section className="content-section">
+            <h3>참여 조건과 판정 근거</h3>
+            <p className="section-note">각 조건을 원문 문장과 함께 보여드려요. 확인이 필요한 항목은 그대로 남겨둡니다.</p>
+            <EligibilityEvidence item={item} state={eligibility.state} onRetry={eligibility.retry} />
+          </section>
+          <section className="content-section">
+            <h3>이거 물어보기</h3>
+            <p className="section-note">저장한 원문과 일정만 근거로 답해요.</p>
+            <div className="ask-chips">
+              {OPPORTUNITY_SUGGESTIONS.map((question) => (
+                <Link
+                  key={question}
+                  to={`/chat?opportunity=${encodeURIComponent(item.id)}&q=${encodeURIComponent(question)}`}
+                  className="ask-chip"
+                >
+                  <MessageCircleQuestion size={15} />
+                  {question}
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
-        <aside className="decision-card">
-          <span className="section-label">YOUR DECISION</span>
-          <h3>이 기회,<br />해볼까요?</h3>
-          <p>결정하면 마감일까지 필요한 일을 작은 단계로 나눠드려요.</p>
-          <StartExecutionButton item={item} />
-          <a href="https://example.com" target="_blank" rel="noreferrer" className="secondary-action">원문 확인 <ExternalLink size={15} /></a>
-        </aside>
+        <DecisionCard item={item} eligibility={eligibility} />
       </div>
     </div>
   );
 }
 
-function StartExecutionButton({ item }: { item: Opportunity }) {
+function DecisionCard({ item, eligibility }: { item: Opportunity; eligibility: EligibilityHandle }) {
+  const navigate = useNavigate();
+  const decisions = useDecisions();
+  const record = resolveDecision(decisions, item.id, item.initialDecision);
+  const decision = record.state;
+  const snoozeLabel = record.snoozeUntil
+    ? new Date(record.snoozeUntil).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+    : snoozeDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+
+  const copy: Record<DecisionState, { title: string; body: string }> = {
+    none: {
+      title: '이 기회,\n해볼까요?',
+      body: '결정하면 마감일까지 필요한 일을 작은 단계로 나눠드려요.',
+    },
+    joined: {
+      title: '참여하기로\n했어요',
+      body: '실행 계획에서 남은 단계를 이어가면 됩니다.',
+    },
+    later: {
+      title: '나중에\n볼 기회예요',
+      body: `${snoozeLabel}에 다시 알려드릴게요. 그때까지 목록 위로 올리지 않아요.`,
+    },
+    archived: {
+      title: '보관한\n기회예요',
+      body: '저장 목록에서는 숨겼어요. 보관 탭에서 다시 꺼낼 수 있어요.',
+    },
+  };
+
+  return (
+    <aside className="decision-card">
+      <span className="section-label">YOUR DECISION</span>
+      <h3>
+        {copy[decision].title.split('\n').map((line, index) => (
+          <span key={line}>{index > 0 && <br />}{line}</span>
+        ))}
+      </h3>
+      <p>{copy[decision].body}</p>
+
+      {decision === 'joined' ? (
+        <button type="button" className="primary-action" onClick={() => navigate(`/plan/${item.id}`)}>
+          실행 계획 보기 <ArrowRight size={17} />
+        </button>
+      ) : (
+        <StartExecutionButton
+          item={item}
+          eligibility={eligibility}
+          onStarted={() => setDecision(item.id, 'joined')}
+        />
+      )}
+
+      <div className="decision-choices">
+        <button
+          type="button"
+          className={`secondary-action ${decision === 'later' ? 'is-chosen' : ''}`}
+          onClick={() => setDecision(item.id, decision === 'later' ? 'none' : 'later')}
+        >
+          <Clock3 size={15} />{decision === 'later' ? '보류 해제' : '나중에'}
+        </button>
+        <button
+          type="button"
+          className={`secondary-action ${decision === 'archived' ? 'is-chosen' : ''}`}
+          onClick={() => {
+            if (decision === 'archived') {
+              setDecision(item.id, 'none');
+              return;
+            }
+            setDecision(item.id, 'archived');
+            navigate('/saved');
+          }}
+        >
+          <Archive size={15} />{decision === 'archived' ? '보관 해제' : '안 할래'}
+        </button>
+      </div>
+
+      <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="secondary-action">
+        원문 확인 <ExternalLink size={15} />
+      </a>
+    </aside>
+  );
+}
+
+function StartExecutionButton({ item, eligibility, onStarted }: { item: Opportunity; eligibility: EligibilityHandle; onStarted?: () => void }) {
   const navigate = useNavigate();
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [message, setMessage] = useState('');
-  const [eligibility, setEligibility] = useState<'checking' | 'pass' | 'unknown' | 'fail'>('checking');
-  useEffect(() => {
-    let live = true;
-    evaluateOpportunity(item.id).then((result) => {
-      if (live) setEligibility(result.eligibility.overall);
-    }).catch(() => { if (live) setEligibility('unknown'); });
-    return () => { live = false; };
-  }, [item.id]);
+  const { state: check, retry } = eligibility;
+  const overall = check.status === 'ready' ? check.result.eligibility.overall : null;
   const start = async () => {
     setState('loading');
     try {
       const result = await startExecution(item.id, [item.id]);
       sessionStorage.setItem(`keep-on-execution-${item.id}`, JSON.stringify(result));
+      onStarted?.();
       navigate(`/plan/${item.id}`);
     } catch (error) {
       setState('error');
       setMessage(error instanceof Error ? error.message : '실행 계획을 만들지 못했어요.');
     }
   };
-  const label = eligibility === 'checking' ? '조건 확인 중…' : eligibility === 'pass' ? (state === 'loading' ? '계획 만드는 중…' : '이거 할래!') : '추가 조건 확인 필요';
-  return <><button type="button" className="primary-action" onClick={start} disabled={state === 'loading' || eligibility !== 'pass'}>{label} <ArrowRight size={17} /></button>{eligibility !== 'checking' && eligibility !== 'pass' && <small className="execution-error">조건이 모두 PASS가 된 공고만 실행 계획을 만들 수 있어요.</small>}{state === 'error' && <small className="execution-error">{message}</small>}</>;
+  const label = check.status === 'loading'
+    ? '조건 확인 중…'
+    : check.status === 'error'
+      ? '조건 다시 확인하기'
+      : overall === 'pass'
+        ? (state === 'loading' ? '계획 만드는 중…' : '이거 할래!')
+        : overall === 'unknown'
+          ? '조건 확인이 먼저예요'
+          : '지금은 조건이 안 맞아요';
+  return <>
+    <button
+      type="button"
+      className="primary-action"
+      onClick={check.status === 'error' ? retry : start}
+      disabled={state === 'loading' || check.status === 'loading' || (check.status === 'ready' && overall !== 'pass')}
+    >
+      {label} <ArrowRight size={17} />
+    </button>
+    {check.status === 'error' && <small className="execution-error">{check.message} 잠시 후 다시 확인해 주세요.</small>}
+    {check.status === 'ready' && overall === 'unknown' && <small className="execution-error">위 근거에서 &lsquo;확인 필요&rsquo;로 남은 조건을 채우면 계획을 만들 수 있어요.</small>}
+    {check.status === 'ready' && overall === 'fail' && <small className="execution-error">불충족 조건이 있어 실행 계획을 만들지 않아요. 근거를 확인해 보세요.</small>}
+    {state === 'error' && <small className="execution-error">{message}</small>}
+  </>;
 }
 
 function PlanPage() {
+  const decisions = useDecisions();
+  const overrides = usePlanOverrides();
+  const plans = useMemo(
+    () => allPlans(overrides)
+      .filter(({ item }) => decisionOf(decisions, item) === 'joined')
+      .sort((a, b) => a.item.dDay - b.item.dDay),
+    [decisions, overrides],
+  );
+
   return (
     <div className="page">
       <section className="page-intro narrow">
@@ -220,19 +453,31 @@ function PlanPage() {
         <p>참여하기로 정한 기회를 마감 순서대로 보여드려요.</p>
       </section>
       <div className="plan-stack">
-        {opportunities.slice(0, 3).map((item, index) => {
-          const done = item.tasks.filter((task) => task.done).length;
-          const progress = done / item.tasks.length;
+        {plans.map(({ item, tasks }, index) => {
+          const done = tasks.filter((task) => task.done).length;
+          const progress = tasks.length ? done / tasks.length : 0;
+          const next = tasks.find((task) => !task.done);
           return (
             <Link to={`/plan/${item.id}`} key={item.id} className={`plan-row accent-${item.accent}`}>
-              <span className="plan-number">0{index + 1}</span>
-              <div className="plan-copy"><span>{item.category} · D-{item.dDay}</span><h3>{item.title}</h3><p>다음: {item.tasks.find((task) => !task.done)?.title || '모든 단계 완료'}</p></div>
+              <span className="plan-number">{String(index + 1).padStart(2, '0')}</span>
+              <div className="plan-copy">
+                <span>{item.category} · D-{item.dDay}</span>
+                <h3>{item.title}</h3>
+                <p>{next ? `다음: ${next.title} · ${formatPlanDate(next.dueAt)}` : '모든 단계 완료'}</p>
+              </div>
               <div className="mini-progress"><span style={{ transform: `scaleX(${progress})` }} /></div>
-              <strong>{done}/{item.tasks.length}</strong>
+              <strong>{done}/{tasks.length}</strong>
               <ArrowRight size={18} />
             </Link>
           );
         })}
+        {!plans.length && (
+          <div className="empty-state">
+            <CheckCircle2 size={24} />
+            <strong>아직 참여를 결정한 기회가 없어요</strong>
+            <p>저장한 기회를 열어 &lsquo;이거 할래!&rsquo;를 누르면 마감까지의 단계가 여기에 생겨요.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -241,149 +486,166 @@ function PlanPage() {
 function PlanDetailPage() {
   const { id } = useParams();
   const item = opportunities.find((opportunity) => opportunity.id === id);
-  const execution = item ? JSON.parse(sessionStorage.getItem(`keep-on-execution-${item.id}`) || 'null') as { tasks?: Array<{ id: string; title: string; due_at?: string }> } | null : null;
-  const plannedTasks = execution?.tasks?.map((task) => ({ id: task.id, title: task.title, due: task.due_at ? new Date(task.due_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '일정 확인', done: false })) || item?.tasks || [];
-  const [doneIds, setDoneIds] = useState(() => new Set<string>());
   if (!item) return <Navigate to="/plan" replace />;
-  const done = doneIds.size;
-  const progress = plannedTasks.length ? done / plannedTasks.length : 0;
-  const toggle = (taskId: string) => setDoneIds((current) => {
-    const next = new Set(current);
-    if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
-    return next;
-  });
-  const planNotes = [
-    '조건과 일정에서 꼭 확인할 정보만 먼저 골라요.',
-    '아이디어와 필요한 자료를 한 문장으로 정리해요.',
-    '결정에 필요한 사람과 정보를 빠르게 연결해요.',
-    '마감 전에 제출물을 마지막으로 점검해요.',
-    '다음 기회를 위해 결과와 배운 점을 남겨요.',
-  ];
+  return <PlanDetail item={item} />;
+}
+
+function PlanDetail({ item }: { item: Opportunity }) {
+  const overrides = usePlanOverrides();
+  const tasks = useMemo(() => planFor(item, overrides), [item, overrides]);
+  const done = tasks.filter((task) => task.done).length;
+  const progress = tasks.length ? done / tasks.length : 0;
+  const deadlineLabel = parseDeadline(item.deadline);
 
   return (
     <div className="page plan-detail">
       <Link to="/plan" className="back-link"><ArrowLeft size={17} />실행 계획</Link>
       <div className="plan-detail-head">
-        <div><span className="section-label">{item.category} · D-{item.dDay}</span><h2>{item.title}</h2><p>오늘 할 수 있는 것부터 하나씩 완료해 보세요.</p></div>
-        <div className={`progress-ring accent-${item.accent}`} style={{ '--progress': `${progress * 360}deg` } as React.CSSProperties}><div><strong>{Math.round(progress * 100)}%</strong><span>완료</span></div></div>
+        <div>
+          <span className="section-label">{item.category} · D-{item.dDay}</span>
+          <h2>{item.title}</h2>
+          <p>
+            마감 {deadlineLabel ? deadlineLabel.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : item.deadline}에서 거꾸로 계산한 일정이에요.{' '}
+            <Link to="/calendar" className="inline-link">캘린더에서 보기</Link>
+          </p>
+        </div>
+        <div className={`progress-ring accent-${item.accent}`} style={{ '--progress': `${progress * 360}deg` } as React.CSSProperties}>
+          <div><strong>{Math.round(progress * 100)}%</strong><span>완료</span></div>
+        </div>
       </div>
       <section className="generated-plan" aria-label={`${item.title} 실행 계획`}>
-          <div className="generated-plan-head"><div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div><span>{done}/{plannedTasks.length} 완료</span></div>
-          <div className="plan-path">
-          {plannedTasks.map((task, index) => {
-            const isDone = doneIds.has(task.id);
-            return <button type="button" key={task.id} aria-pressed={isDone} onClick={() => toggle(task.id)} className={`plan-node plan-tone-${index % 3} ${isDone ? 'is-done' : ''}`}>
+        <div className="generated-plan-head">
+          <div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div>
+          <span>{done}/{tasks.length} 완료</span>
+        </div>
+        <div className="plan-path">
+          {tasks.map((task, index) => (
+            <button
+              type="button"
+              key={task.id}
+              aria-pressed={task.done}
+              onClick={() => setTaskDone(item.id, task.id, !task.done)}
+              className={`plan-node plan-tone-${index % 3} ${task.done ? 'is-done' : ''}`}
+            >
               <span className="plan-node-pin"><Pin size={25} fill="currentColor" /></span>
-              <span className="plan-node-card"><span className="plan-node-number">{String(index + 1).padStart(2, '0')}</span><strong>{task.title}</strong><small>{planNotes[index] || planNotes[planNotes.length - 1]}</small><em>{isDone ? '완료됨' : task.due}</em></span>
-            </button>;
-          })}
+              <span className="plan-node-card">
+                <span className="plan-node-number">{String(index + 1).padStart(2, '0')}</span>
+                <strong>{task.title}</strong>
+                <small>{task.note}</small>
+                <em>{task.done ? '완료됨' : formatPlanDate(task.dueAt)}</em>
+              </span>
+            </button>
+          ))}
         </div>
       </section>
-      {plannedTasks.length > 0 && done === plannedTasks.length && <div className="completion-toast"><CheckCircle2 size={19} /><span><strong>멋져요!</strong> 이 기회의 준비를 모두 마쳤어요.</span></div>}
-    </div>
-  );
-}
-
-function CalendarPage() {
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [selectedDay, setSelectedDay] = useState(13);
-  const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('month');
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('전체');
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('해야 할 일');
-  const [customEvents, setCustomEvents] = useState<Array<{ day: number; title: string; tone: 'blue' | 'yellow' | 'pink'; category: string }>>([]);
-  const baseMonth = 7 + monthOffset;
-  const date = new Date(2026, baseMonth, 1);
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)];
-  const events = monthOffset === 0 ? [...calendarEvents, ...customEvents] : [];
-  const categories = ['전체', '해야 할 일', '마감', '준비'];
-  const filteredEvents = events.filter((event) => {
-    const matchesCategory = category === '전체' || event.category === category;
-    return matchesCategory && event.title.toLowerCase().includes(query.toLowerCase());
-  });
-  const selectedEvents = filteredEvents.filter((event) => event.day === selectedDay);
-  const selectedDate = new Date(year, month, selectedDay);
-  const weekStart = new Date(selectedDate);
-  weekStart.setDate(selectedDate.getDate() - selectedDate.getDay());
-  const weekDays = Array.from({ length: 7 }, (_, index) => new Date(year, month, weekStart.getDate() + index));
-  const goToday = () => { setMonthOffset(0); setSelectedDay(13); };
-  const addEvent = () => {
-    const title = newTitle.trim();
-    if (!title) return;
-    const tones: Record<string, 'blue' | 'yellow' | 'pink'> = { '해야 할 일': 'blue', 마감: 'yellow', 준비: 'pink' };
-    setCustomEvents((current) => [...current, { day: selectedDay, title, category: newCategory, tone: tones[newCategory] }]);
-    setNewTitle('');
-    setNewCategory('해야 할 일');
-    setIsComposerOpen(false);
-  };
-
-  return (
-    <div className="page calendar-page">
-      <section className="calendar-intro"><div><p className="section-label">DEADLINE MAP</p><h2>일정을 한눈에<br />정리해요</h2><p>해야 할 일, 준비할 일, 마감을 색으로 구분해 두었어요.</p></div><div className="calendar-legend" aria-label="일정 분류"><span className="calendar-tone-blue"><i />해야 할 일</span><span className="calendar-tone-yellow"><i />마감</span><span className="calendar-tone-pink"><i />준비</span></div></section>
-      <div className="calendar-toolbar">
-        <label className="calendar-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="일정 검색" /></label>
-        <div className="calendar-view-toggle" aria-label="캘린더 보기 방식"><button type="button" className={view === 'month' ? 'is-active' : ''} onClick={() => setView('month')}><LayoutGrid size={16} />월</button><button type="button" className={view === 'week' ? 'is-active' : ''} onClick={() => setView('week')}><CalendarDays size={16} />주</button><button type="button" className={view === 'day' ? 'is-active' : ''} onClick={() => setView('day')}><CalendarDays size={16} />일</button><button type="button" className={view === 'list' ? 'is-active' : ''} onClick={() => setView('list')}><List size={16} />목록</button></div><button type="button" className="calendar-add" onClick={() => setIsComposerOpen(true)}><Plus size={16} />일정 추가</button>
-      </div>
-      <div className="calendar-filters" role="tablist" aria-label="일정 분류 필터">{categories.map((item) => <button key={item} type="button" className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
-      <div className="calendar-layout">
-        <section className="calendar-card">
-          <div className="calendar-head">
-            <button type="button" onClick={() => setMonthOffset((value) => value - 1)} aria-label="이전 달"><ChevronLeft size={19} /></button>
-            <div><h3>{view === 'week' ? `${month + 1}월 ${weekDays[0].getDate()}일 주` : view === 'day' ? `${month + 1}월 ${selectedDay}일` : `${year}년 ${month + 1}월`}</h3><button type="button" className="calendar-today" onClick={goToday}>오늘</button></div>
-            <button type="button" onClick={() => setMonthOffset((value) => value + 1)} aria-label="다음 달"><ChevronRight size={19} /></button>
-          </div>
-          {view === 'month' ? <><div className="weekdays">{['일', '월', '화', '수', '목', '금', '토'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid">
-            {cells.map((day, index) => {
-              const dayEvents = day ? filteredEvents.filter((event) => event.day === day) : [];
-              return day ? <div key={day} className={`calendar-day ${selectedDay === day && monthOffset === 0 ? 'is-selected' : ''}`}><button type="button" onClick={() => setSelectedDay(day)} aria-label={`${month + 1}월 ${day}일 선택`}><span>{day}</span></button><div className="calendar-day-events">{dayEvents.slice(0, 2).map((event) => <button type="button" key={event.title} className={`calendar-event-pill calendar-tone-${event.tone}`} onClick={() => setSelectedDay(day)}>{event.title}</button>)}</div></div> : <span key={`empty-${index}`} className="calendar-day is-empty" />;
-            })}
-          </div></> : view === 'week' ? <div className="calendar-week-view">{weekDays.map((day) => { const dayEvents = filteredEvents.filter((event) => event.day === day.getDate()); return <button type="button" key={day.toISOString()} className={`calendar-week-column ${selectedDay === day.getDate() ? 'is-selected' : ''}`} onClick={() => setSelectedDay(day.getDate())}><span>{day.toLocaleDateString('ko-KR', { weekday: 'short' })}</span><strong>{day.getDate()}</strong><div>{dayEvents.map((event) => <i key={event.title} className={`calendar-tone-${event.tone}`}>{event.title}</i>)}</div></button>; })}</div> : view === 'day' ? <div className="calendar-day-view"><span>{selectedDate.toLocaleDateString('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' })}</span>{selectedEvents.map((event) => <button key={event.title} type="button" className={`calendar-day-detail calendar-tone-${event.tone}`}><i /><div><strong>{event.title}</strong><small>{event.category}</small></div></button>)}{!selectedEvents.length && <p className="calendar-empty">이날은 정해진 일정이 없어요.</p>}</div> : <div className="calendar-list-view">{filteredEvents.map((event) => <button type="button" key={event.title} className={`calendar-list-item calendar-tone-${event.tone}`} onClick={() => { setSelectedDay(event.day); setView('month'); }}><span>{month + 1}/{event.day}</span><i /><strong>{event.title}</strong><small>{event.category}</small></button>)}{!filteredEvents.length && <p className="calendar-empty">조건에 맞는 일정이 없어요.</p>}</div>}
-        </section>
-        <aside className="day-agenda">
-          <p className="section-label">SELECTED DAY</p>
-          <div className="selected-date"><strong>{selectedDay}</strong><span>{month + 1}월<br />{selectedDate.toLocaleDateString('ko-KR', { weekday: 'long' })}</span></div>
-          <div className="agenda-list">
-            {selectedEvents.map((event) => <div key={event.title} className={`agenda-item calendar-tone-${event.tone}`}><i /><div><span>{event.category}</span><p>{event.title}</p></div></div>)}
-            {!selectedEvents.length && <p className="agenda-empty">이날은 정해진 일정이 없어요.</p>}
-          </div>
-        </aside>
-      </div>
-      {isComposerOpen && <div className="calendar-dialog-backdrop" role="presentation" onMouseDown={() => setIsComposerOpen(false)}><form className="calendar-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); addEvent(); }}><button type="button" className="calendar-dialog-close" onClick={() => setIsComposerOpen(false)} aria-label="닫기"><X size={18} /></button><p className="section-label">NEW EVENT</p><h3>{month + 1}월 {selectedDay}일에 일정 추가</h3><label>일정 이름<input autoFocus value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="예: 지원서 초안 작성" /></label><label>분류<select value={newCategory} onChange={(event) => setNewCategory(event.target.value)}><option>해야 할 일</option><option>마감</option><option>준비</option></select></label><button type="submit" className="primary-action">일정 추가 <Plus size={16} /></button></form></div>}
+      {tasks.length > 0 && done === tasks.length && (
+        <div className="completion-toast">
+          <CheckCircle2 size={19} />
+          <span><strong>멋져요!</strong> 이 기회의 준비를 모두 마쳤어요.</span>
+        </div>
+      )}
     </div>
   );
 }
 
 function ChatPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const overrides = usePlanOverrides();
+  const opportunityId = searchParams.get('opportunity');
+  const item = opportunities.find((opportunity) => opportunity.id === opportunityId);
+  const tasks = useMemo(() => (item ? planFor(item, overrides) : []), [item, overrides]);
+  const suggestions = item ? OPPORTUNITY_SUGGESTIONS : GENERAL_SUGGESTIONS;
+
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([
-    { id: 1, role: 'assistant', text: '수정님, 어떤 기회를 함께 살펴볼까요?' },
-  ]);
-  const suggestions = ['이번 주 마감만 보여줘', 'AWS 공모전 자격 확인해줘', '지원 계획을 더 작게 나눠줘'];
-  const send = (text: string) => {
+  const [messages, setMessages] = useState<Array<{ id: number; role: 'assistant' | 'user'; text: string }>>([]);
+  const askedRef = useRef<string | null>(null);
+
+  const send = useCallback((text: string) => {
     const value = text.trim();
     if (!value) return;
-    setMessages((current) => [...current, { id: Date.now(), role: 'user', text: value }, { id: Date.now() + 1, role: 'assistant', text: '좋아요. 저장한 정보와 현재 일정을 기준으로 가장 현실적인 다음 행동을 정리해볼게요.' }]);
+    const answer = answerFor(value, { item, tasks, planOverrides: overrides });
+    setMessages((current) => [
+      ...current,
+      { id: Date.now(), role: 'user', text: value },
+      { id: Date.now() + 1, role: 'assistant', text: answer },
+    ]);
     setInput('');
+  }, [item, tasks, overrides]);
+
+  // 카드에서 '이거 물어보기'로 들어온 질문은 한 번만 자동 전송한다.
+  useEffect(() => {
+    const question = searchParams.get('q');
+    if (!question) return;
+    const key = `${opportunityId ?? ''}:${question}`;
+    if (askedRef.current === key) return;
+    askedRef.current = key;
+    send(question);
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    setSearchParams(next, { replace: true });
+  }, [opportunityId, searchParams, send, setSearchParams]);
+
+  const clearContext = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('opportunity');
+    next.delete('q');
+    setSearchParams(next, { replace: true });
+    setMessages([]);
+    askedRef.current = null;
   };
+
   return (
     <div className="page chat-page">
       <section className="chat-shell">
-        <div className="chat-intro"><span className="assistant-orb"><Sparkles size={22} /></span><p className="section-label">KEEP:ON ASSISTANT</p><h2>저장한 정보에 대해<br />무엇이든 물어보세요</h2></div>
-        <div className="messages" aria-live="polite">
-          {messages.map((message) => <div key={message.id} className={`message ${message.role}`}>{message.role === 'assistant' && <span className="mini-orb">K</span>}<p>{message.text}</p></div>)}
+        <div className="chat-intro">
+          <span className="assistant-orb"><Sparkles size={22} /></span>
+          <p className="section-label">KEEP:ON ASSISTANT</p>
+          <h2>저장한 정보에 대해<br />무엇이든 물어보세요</h2>
         </div>
-        {messages.length === 1 && <div className="suggestions">{suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => send(suggestion)}>{suggestion}<ArrowUpRight size={14} /></button>)}</div>}
+
+        {item && (
+          <div className="chat-context">
+            <div>
+              <span>이 기회에 대해 이야기 중</span>
+              <Link to={`/saved/${item.id}`}>{item.title}</Link>
+              <small>{item.organization} · D-{item.dDay}</small>
+            </div>
+            <button type="button" onClick={clearContext} aria-label="맥락 지우기"><X size={16} /></button>
+          </div>
+        )}
+
+        <div className="messages" aria-live="polite">
+          {messages.length === 0 && (
+            <div className="message assistant">
+              <span className="mini-orb">K</span>
+              <p>
+                {item
+                  ? `‘${item.title}’에 대해 저장한 정보와 일정을 기준으로 답해 드려요.`
+                  : '수정님, 어떤 기회를 함께 살펴볼까요?'}
+              </p>
+            </div>
+          )}
+          {messages.map((message) => (
+            <div key={message.id} className={`message ${message.role}`}>
+              {message.role === 'assistant' && <span className="mini-orb">K</span>}
+              <p>{message.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="suggestions">
+          {suggestions.map((suggestion) => (
+            <button type="button" key={suggestion} onClick={() => send(suggestion)}>
+              {suggestion}<ArrowUpRight size={14} />
+            </button>
+          ))}
+        </div>
+
         <form className="chat-input" onSubmit={(event) => { event.preventDefault(); send(input); }}>
           <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="예: 이번 주에 뭘 먼저 해야 해?" />
           <button type="submit" aria-label="메시지 보내기"><Send size={18} /></button>
         </form>
-        <p className="ai-disclaimer">AI 답변은 저장한 원문을 기준으로 하며, 중요한 조건은 원문에서 다시 확인해 주세요.</p>
+        <p className="ai-disclaimer">저장한 원문과 일정만 근거로 답해요. 중요한 조건은 원문에서 다시 확인해 주세요.</p>
       </section>
     </div>
   );
@@ -391,21 +653,100 @@ function ChatPage() {
 
 function ProfilePage() {
   const [reminders, setReminders] = useState(true);
-  const initial = loadProfile();
-  const [profile, setProfile] = useState({ birthDate: initial.birth_date, region: initial.region || '', status: initial.status || '', weeklyHours: String(initial.weekly_available_hours || 8) });
-  const updateProfile = (patch: Partial<typeof profile>) => setProfile((current) => {
-    const next = { ...current, ...patch };
-    saveProfile({ birth_date: next.birthDate, region: next.region, status: next.status, interests: ['AI', '클라우드', '공모전'], weekly_available_hours: Number(next.weeklyHours) || 0 });
-    return next;
-  });
+  const stored = useStoredProfile();
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => missingRequired(stored).length > 0 && !isOnboardingDone(),
+  );
+  const interests = stored.interests ?? [];
+  const weeklyHours = String(stored.weekly_available_hours ?? '');
+
   return (
     <div className="page profile-page">
-      <section className="profile-hero"><span className="large-avatar">수</span><div><p className="section-label">MY PROFILE</p><h2>김수정</h2><p>대학생 · 컴퓨터공학 · 3학년</p></div></section>
+      <section className="profile-hero">
+        <span className="large-avatar">수</span>
+        <div><p className="section-label">MY PROFILE</p><h2>김수정</h2><p>대학생 · 컴퓨터공학 · 3학년</p></div>
+      </section>
+
+      {showOnboarding ? (
+        <ProfileOnboarding
+          profile={stored}
+          onFinish={() => setShowOnboarding(false)}
+          onSkip={() => { markOnboardingDone(); setShowOnboarding(false); }}
+        />
+      ) : (
+        missingRequired(stored).length > 0 && (
+          <div className="profile-resume">
+            <span>아직 채우지 않은 정보가 있어요. 조건 판정을 위해 3단계만 입력하면 됩니다.</span>
+            <button type="button" className="secondary-action" onClick={() => setShowOnboarding(true)}>
+              3단계로 채우기 <ArrowRight size={15} />
+            </button>
+          </div>
+        )
+      )}
+
+      <div className="profile-impact-slot">
+        <ProfileImpact profile={stored} />
+      </div>
+
       <div className="profile-grid">
-        <section className="profile-card profile-basics"><div className="card-title"><Target size={19} /><h3>조건 판단을 위한 기본 정보</h3></div><p>나이 조건은 생년월일 전체를 기준으로 정확하게 확인해요.</p><div className="profile-form"><label>생년월일<input type="date" value={profile.birthDate} onChange={(event) => updateProfile({ birthDate: event.target.value })} /></label><label>거주 지역<input value={profile.region} onChange={(event) => updateProfile({ region: event.target.value })} /></label><label>현재 상태<input value={profile.status} onChange={(event) => updateProfile({ status: event.target.value })} /></label></div></section>
-        <section className="profile-card"><div className="card-title"><Target size={19} /><h3>관심 분야</h3></div><div className="interest-tags"><span>AI</span><span>클라우드</span><span>공모전</span><button type="button">+ 추가</button></div></section>
-        <section className="profile-card"><div className="card-title"><CalendarDays size={19} /><h3>활동 가능 시간</h3></div><strong className="big-value">주 <input className="inline-hours" type="number" min="0" value={profile.weeklyHours} onChange={(event) => updateProfile({ weeklyHours: event.target.value })} />시간</strong><p>평일 저녁과 토요일에 활동할 수 있어요.</p></section>
-        <section className="profile-card settings-card"><div className="card-title"><Settings2 size={19} /><h3>알림 설정</h3></div><button className="setting-row" type="button" onClick={() => setReminders((value) => !value)}><span><strong>마감 리마인드</strong><small>7일, 3일, 하루 전에 알려드려요</small></span><i className={reminders ? 'is-on' : ''}><b /></i></button></section>
+        <section className="profile-card profile-basics">
+          <div className="card-title"><Target size={19} /><h3>조건 판단을 위한 기본 정보</h3></div>
+          <p>나이 조건은 생년월일 전체를 기준으로 정확하게 확인해요. 비워 두면 해당 조건은 ‘확인 필요’로 남습니다.</p>
+          <div className="profile-form">
+            <label>생년월일
+              <input
+                type="date"
+                value={stored.birth_date ?? ''}
+                onChange={(event) => patchProfile({ birth_date: event.target.value || undefined })}
+              />
+            </label>
+            <label>거주 지역
+              <input
+                value={stored.region ?? ''}
+                placeholder="예: 서울 관악구"
+                onChange={(event) => patchProfile({ region: event.target.value || undefined })}
+              />
+            </label>
+            <label>현재 상태
+              <input
+                value={stored.status ?? ''}
+                placeholder="예: 대학생"
+                onChange={(event) => patchProfile({ status: event.target.value || undefined })}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <div className="card-title"><Target size={19} /><h3>관심 분야</h3></div>
+          <div className="interest-tags">
+            {interests.length > 0
+              ? interests.map((interest) => <span key={interest}>{interest}</span>)
+              : <span className="is-empty">아직 없음</span>}
+            <button type="button" onClick={() => setShowOnboarding(true)}>+ 추가</button>
+          </div>
+        </section>
+
+        <section className="profile-card">
+          <div className="card-title"><CalendarDays size={19} /><h3>활동 가능 시간</h3></div>
+          <strong className="big-value">주 <input
+            className="inline-hours"
+            type="number"
+            min="0"
+            value={weeklyHours}
+            placeholder="8"
+            onChange={(event) => patchProfile({ weekly_available_hours: Number(event.target.value) || undefined })}
+          />시간</strong>
+          <p>준비 여유(feasibility) 판정에 사용해요.</p>
+        </section>
+
+        <section className="profile-card settings-card">
+          <div className="card-title"><Settings2 size={19} /><h3>알림 설정</h3></div>
+          <button className="setting-row" type="button" onClick={() => setReminders((value) => !value)}>
+            <span><strong>마감 리마인드</strong><small>7일, 3일, 하루 전에 알려드려요</small></span>
+            <i className={reminders ? 'is-on' : ''}><b /></i>
+          </button>
+        </section>
       </div>
     </div>
   );

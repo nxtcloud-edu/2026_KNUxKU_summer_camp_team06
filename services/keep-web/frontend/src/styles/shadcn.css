@@ -5,43 +5,51 @@
    `.tw-root`. Radix portals (Dialog / Select / DropdownMenu content) render
    outside the page tree, so those components add `tw-root` to their own
    className.
+
+   Every reset rule is wrapped in :where() so it carries ZERO specificity.
+   Without that, `.tw-root *` (0,1,0) would tie with `.border` (0,1,0) and win
+   on source order, and `.tw-root h2` (0,1,1) would beat `.text-xl` — i.e. all
+   borders and all font sizes inside the calendar would be dropped.
    ========================================================================== */
 
 @tailwind components;
 @tailwind utilities;
 
 .tw-root {
-  /* shadcn design tokens, namespaced to avoid clashing with index.css :root */
-  --sd-background: 0 0% 100%;
-  --sd-foreground: 242 36% 15%;
-  --sd-card: 0 0% 100%;
-  --sd-card-foreground: 242 36% 15%;
-  --sd-popover: 0 0% 100%;
-  --sd-popover-foreground: 242 36% 15%;
-  --sd-primary: 202 60% 46%;
-  --sd-primary-foreground: 0 0% 100%;
-  --sd-secondary: 205 63% 95%;
-  --sd-secondary-foreground: 202 60% 28%;
-  --sd-muted: 220 20% 97%;
-  --sd-muted-foreground: 243 9% 46%;
-  --sd-accent: 205 63% 95%;
-  --sd-accent-foreground: 202 60% 28%;
-  --sd-destructive: 0 72% 51%;
-  --sd-destructive-foreground: 0 0% 100%;
-  --sd-border: 228 10% 90%;
-  --sd-input: 228 10% 90%;
-  --sd-ring: 202 60% 46%;
-  --sd-radius: 14px;
+  /* shadcn 토큰은 index.css :root 의 --hsl-* 브리지 값에서 파생된다.
+     브랜드 색은 index.css 한 곳에서만 관리한다. */
+  --sd-background: var(--hsl-background);
+  --sd-foreground: var(--hsl-ink);
+  --sd-card: var(--hsl-background);
+  --sd-card-foreground: var(--hsl-ink);
+  --sd-popover: var(--hsl-background);
+  --sd-popover-foreground: var(--hsl-ink);
+  --sd-primary: var(--hsl-primary);
+  --sd-primary-foreground: var(--hsl-on-dark);
+  --sd-secondary: var(--hsl-primary-soft);
+  --sd-secondary-foreground: var(--hsl-primary-ink);
+  --sd-muted: var(--hsl-canvas);
+  --sd-muted-foreground: var(--hsl-ink-3);
+  --sd-accent: var(--hsl-primary-soft);
+  --sd-accent-foreground: var(--hsl-primary-ink);
+  --sd-destructive: var(--hsl-danger);
+  --sd-destructive-foreground: var(--hsl-on-dark);
+  --sd-border: var(--hsl-border);
+  --sd-input: var(--hsl-border);
+  --sd-ring: var(--hsl-primary);
+  --sd-radius: var(--r-md, 14px);
 
   color: hsl(var(--sd-foreground));
+  font-family: inherit;
+  line-height: 1.5;
 }
 
 /* Tailwind's custom-property defaults (normally emitted by preflight). Without
    these, transform / ring / shadow utilities resolve to invalid values. */
-.tw-root,
-.tw-root *,
-.tw-root *::before,
-.tw-root *::after {
+:where(.tw-root),
+:where(.tw-root) :where(*),
+:where(.tw-root) :where(*)::before,
+:where(.tw-root) :where(*)::after {
   --tw-border-spacing-x: 0;
   --tw-border-spacing-y: 0;
   --tw-translate-x: 0;
@@ -96,89 +104,65 @@
   border-color: hsl(var(--sd-border));
 }
 
-/* Minimal scoped preflight equivalent */
-.tw-root h1,
-.tw-root h2,
-.tw-root h3,
-.tw-root h4,
-.tw-root h5,
-.tw-root h6,
-.tw-root p,
-.tw-root figure,
-.tw-root blockquote,
-.tw-root ul,
-.tw-root ol {
+/* Minimal scoped preflight equivalent (zero specificity) */
+:where(.tw-root)
+  :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, dl, dd) {
   margin: 0;
 }
 
-.tw-root h1,
-.tw-root h2,
-.tw-root h3,
-.tw-root h4,
-.tw-root h5,
-.tw-root h6 {
+:where(.tw-root) :where(h1, h2, h3, h4, h5, h6) {
   font-size: inherit;
   font-weight: inherit;
 }
 
-.tw-root ul,
-.tw-root ol {
+:where(.tw-root) :where(ul, ol) {
   padding: 0;
   list-style: none;
 }
 
-.tw-root button,
-.tw-root [role='button'] {
+:where(.tw-root) :where(button, [role='button']) {
   cursor: pointer;
 }
 
-.tw-root button,
-.tw-root input,
-.tw-root optgroup,
-.tw-root select,
-.tw-root textarea {
+:where(.tw-root) :where(button, input, optgroup, select, textarea) {
   font-family: inherit;
   font-feature-settings: inherit;
   font-size: 100%;
   font-weight: inherit;
   line-height: inherit;
+  letter-spacing: inherit;
   color: inherit;
   margin: 0;
   padding: 0;
 }
 
-.tw-root button,
-.tw-root [type='button'],
-.tw-root [type='reset'],
-.tw-root [type='submit'] {
+:where(.tw-root) :where(button, [type='button'], [type='reset'], [type='submit']) {
   -webkit-appearance: button;
   background-color: transparent;
   background-image: none;
 }
 
-.tw-root input::placeholder,
-.tw-root textarea::placeholder {
+:where(.tw-root) :where(input, textarea)::placeholder {
   opacity: 1;
   color: hsl(var(--sd-muted-foreground));
 }
 
-.tw-root textarea {
+:where(.tw-root) :where(textarea) {
   resize: vertical;
 }
 
-.tw-root svg {
+:where(.tw-root) :where(svg) {
   display: block;
   vertical-align: middle;
 }
 
-.tw-root img,
-.tw-root video {
+:where(.tw-root) :where(img, video) {
   display: block;
   max-width: 100%;
   height: auto;
 }
 
-.tw-root [hidden] {
+:where(.tw-root) :where([hidden]) {
   display: none;
 }
 
@@ -190,4 +174,19 @@
 
 .tw-root .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Matches the `.section-label` treatment used across the KEEP:ON pages */
+.tw-root .sd-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--sd-muted-foreground));
+}
+
+/* Time grids: keep the scroll area inside the card */
+.tw-root .sd-time-grid {
+  max-height: min(60vh, 520px);
+  overflow: auto;
 }

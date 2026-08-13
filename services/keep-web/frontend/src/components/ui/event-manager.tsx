@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -54,6 +55,8 @@ export interface Event {
   category?: string;
   attendees?: string[];
   tags?: string[];
+  /** 마감처럼 사용자가 옮길 수 없는 일정 */
+  locked?: boolean;
 }
 
 export interface EventColor {
@@ -113,6 +116,17 @@ export interface EventManagerLabels {
   noEvents: string;
   hourSuffix: string;
   minuteSuffix: string;
+  /** Side panel */
+  selectedDayLabel: string;
+  noEventsForDay: string;
+  eventCount: (count: number) => string;
+  /** Week / day hour range toggle */
+  showAllHours: string;
+  showCoreHours: string;
+  /** Caption for events that fall outside the visible hour range */
+  outsideRange: string;
+  previousPeriod: string;
+  nextPeriod: string;
 }
 
 export interface EventManagerProps {
@@ -128,6 +142,21 @@ export interface EventManagerProps {
   /** BCP 47 tag used for every rendered date and time. */
   locale?: string;
   labels?: Partial<EventManagerLabels>;
+  /**
+   * 이벤트를 눌렀을 때 먼저 호출된다. true를 반환하면 편집 다이얼로그를 열지 않는다.
+   * (계획 단계를 실행 계획 화면으로 보낼 때 사용)
+   */
+  onEventSelect?: (event: Event) => boolean;
+  /** 검색 매칭 규칙 교체 (기본값은 소문자 포함 검색) */
+  matchQuery?: (text: string, query: string) => boolean;
+  /** Show the "selected day" agenda panel beside the calendar. */
+  showAgenda?: boolean;
+  /**
+   * Hours rendered by the week and day views, as [start, end) in 24h form.
+   * A full 0–24 grid is very tall, so this trims it; the user can still
+   * expand to the full day from the toolbar.
+   */
+  hourRange?: [number, number];
 }
 
 const defaultColors: EventColor[] = [
@@ -198,6 +227,14 @@ const defaultLabels: EventManagerLabels = {
   noEvents: 'No events found',
   hourSuffix: 'h',
   minuteSuffix: 'm',
+  selectedDayLabel: 'SELECTED DAY',
+  noEventsForDay: 'Nothing scheduled for this day.',
+  eventCount: (count) => `${count} events`,
+  showAllHours: 'Full day',
+  showCoreHours: 'Core hours',
+  outsideRange: 'Outside these hours',
+  previousPeriod: 'Previous',
+  nextPeriod: 'Next',
 };
 
 function toLocalInputValue(date: Date) {
@@ -205,6 +242,17 @@ function toLocalInputValue(date: Date) {
     .toISOString()
     .slice(0, 16);
 }
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getDate() === b.getDate() &&
+    a.getMonth() === b.getMonth() &&
+    a.getFullYear() === b.getFullYear()
+  );
+}
+
+const sectionLabel =
+  'text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground';
 
 export function EventManager({
   events: initialEvents = [],
@@ -225,6 +273,10 @@ export function EventManager({
   ],
   locale = 'en-US',
   labels: labelOverrides,
+  showAgenda = false,
+  hourRange = [0, 24],
+  onEventSelect,
+  matchQuery,
 }: EventManagerProps) {
   const labels = useMemo(
     () => ({ ...defaultLabels, ...labelOverrides }),
@@ -232,6 +284,7 @@ export function EventManager({
   );
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>(
     defaultView,
   );
@@ -239,6 +292,7 @@ export function EventManager({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [draggedEvent, setDraggedEvent] = useState<Event | null>(null);
+  const [showAllHours, setShowAllHours] = useState(false);
   const [newEvent, setNewEvent] = useState<Partial<Event>>({
     title: '',
     description: '',
@@ -253,14 +307,15 @@ export function EventManager({
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
-      // Search filter
+      // Search filter. matchQuery 를 넘기면 언어별 매칭 규칙을 갈아끼울 수 있다.
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const test = matchQuery ?? ((text: string, q: string) => text.toLowerCase().includes(q));
         const matchesSearch =
-          event.title.toLowerCase().includes(query) ||
-          event.description?.toLowerCase().includes(query) ||
-          event.category?.toLowerCase().includes(query) ||
-          event.tags?.some((tag) => tag.toLowerCase().includes(query));
+          test(event.title, query) ||
+          (event.description ? test(event.description, query) : false) ||
+          (event.category ? test(event.category, query) : false) ||
+          (event.tags?.some((tag) => test(tag, query)) ?? false);
         if (!matchesSearch) return false;
       }
 
@@ -288,7 +343,7 @@ export function EventManager({
 
       return true;
     });
-  }, [events, searchQuery, selectedColors, selectedTags, selectedCategories]);
+  }, [events, searchQuery, selectedColors, selectedTags, selectedCategories, matchQuery]);
 
   const hasActiveFilters =
     selectedColors.length > 0 ||
@@ -301,6 +356,23 @@ export function EventManager({
     setSelectedCategories([]);
     setSearchQuery('');
   };
+
+  const hours = useMemo(() => {
+    const [start, end] = showAllHours ? [0, 24] : hourRange;
+    const from = Math.max(0, Math.min(23, start));
+    const to = Math.max(from + 1, Math.min(24, end));
+    return Array.from({ length: to - from }, (_, i) => from + i);
+  }, [hourRange, showAllHours]);
+
+  const isTrimmedRange = hourRange[0] > 0 || hourRange[1] < 24;
+
+  const selectedDayEvents = useMemo(
+    () =>
+      filteredEvents
+        .filter((event) => isSameDay(event.startTime, selectedDate))
+        .sort((a, b) => a.startTime.getTime() - b.startTime.getTime()),
+    [filteredEvents, selectedDate],
+  );
 
   const handleCreateEvent = useCallback(() => {
     if (!newEvent.title || !newEvent.startTime || !newEvent.endTime) return;
@@ -395,20 +467,33 @@ export function EventManager({
 
   const navigateDate = useCallback(
     (direction: 'prev' | 'next') => {
+      const step = direction === 'next' ? 1 : -1;
       setCurrentDate((prev) => {
         const newDate = new Date(prev);
         if (view === 'month') {
-          newDate.setMonth(prev.getMonth() + (direction === 'next' ? 1 : -1));
+          newDate.setMonth(prev.getMonth() + step);
         } else if (view === 'week') {
-          newDate.setDate(prev.getDate() + (direction === 'next' ? 7 : -7));
+          newDate.setDate(prev.getDate() + step * 7);
         } else if (view === 'day') {
-          newDate.setDate(prev.getDate() + (direction === 'next' ? 1 : -1));
+          newDate.setDate(prev.getDate() + step);
         }
         return newDate;
       });
+      if (view === 'day') {
+        setSelectedDate((prev) => {
+          const next = new Date(prev);
+          next.setDate(prev.getDate() + step);
+          return next;
+        });
+      }
     },
     [view],
   );
+
+  const goToToday = useCallback(() => {
+    setCurrentDate(new Date());
+    setSelectedDate(new Date());
+  }, []);
 
   const getColorClasses = useCallback(
     (colorValue: string) => {
@@ -417,6 +502,21 @@ export function EventManager({
     },
     [colors],
   );
+
+  const openEvent = useCallback(
+    (event: Event) => {
+      setSelectedDate(new Date(event.startTime));
+      if (onEventSelect?.(event)) return;
+      setSelectedEvent(event);
+      setIsCreating(false);
+      setIsDialogOpen(true);
+    },
+    [onEventSelect],
+  );
+
+  const selectDay = useCallback((date: Date) => {
+    setSelectedDate(date);
+  }, []);
 
   const toggleTag = (tag: string, creating: boolean) => {
     if (creating) {
@@ -440,562 +540,432 @@ export function EventManager({
     }
   };
 
+  const periodTitle =
+    view === 'month'
+      ? currentDate.toLocaleDateString(locale, {
+          year: 'numeric',
+          month: 'long',
+        })
+      : view === 'week'
+        ? labels.weekOf(
+            currentDate.toLocaleDateString(locale, {
+              month: 'short',
+              day: 'numeric',
+            }),
+          )
+        : view === 'day'
+          ? currentDate.toLocaleDateString(locale, {
+              month: 'long',
+              day: 'numeric',
+              weekday: 'long',
+            })
+          : labels.allEvents;
+
+  const viewOptions = [
+    { value: 'month' as const, icon: Calendar, short: labels.month, long: labels.monthView },
+    { value: 'week' as const, icon: Grid3x3, short: labels.week, long: labels.weekView },
+    { value: 'day' as const, icon: Clock, short: labels.day, long: labels.dayView },
+    { value: 'list' as const, icon: List, short: labels.list, long: labels.listView },
+  ];
+
   return (
-    <div className={cn('tw-root flex flex-col gap-4', className)}>
-      {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <h2 className="text-xl font-semibold sm:text-2xl">
-            {view === 'month' &&
-              currentDate.toLocaleDateString(locale, {
-                month: 'long',
-                year: 'numeric',
-              })}
-            {view === 'week' &&
-              labels.weekOf(
-                currentDate.toLocaleDateString(locale, {
-                  month: 'short',
-                  day: 'numeric',
-                }),
-              )}
-            {view === 'day' &&
-              currentDate.toLocaleDateString(locale, {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            {view === 'list' && labels.allEvents}
-          </h2>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigateDate('prev')}
-              className="h-8 w-8"
-              aria-label={labels.month}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentDate(new Date())}
-            >
-              {labels.today}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigateDate('next')}
-              className="h-8 w-8"
-              aria-label={labels.month}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {/* Mobile: Select dropdown */}
-          <div className="sm:hidden">
-            <Select
-              value={view}
-              onValueChange={(value) =>
-                setView(value as 'month' | 'week' | 'day' | 'list')
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="month">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {labels.monthView}
-                  </div>
-                </SelectItem>
-                <SelectItem value="week">
-                  <div className="flex items-center gap-2">
-                    <Grid3x3 className="h-4 w-4" />
-                    {labels.weekView}
-                  </div>
-                </SelectItem>
-                <SelectItem value="day">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    {labels.dayView}
-                  </div>
-                </SelectItem>
-                <SelectItem value="list">
-                  <div className="flex items-center gap-2">
-                    <List className="h-4 w-4" />
-                    {labels.listView}
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Desktop: Button group */}
-          <div className="hidden sm:flex items-center gap-1 rounded-lg border bg-background p-1">
-            <Button
-              variant={view === 'month' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('month')}
-              className="h-8"
-            >
-              <Calendar className="h-4 w-4" />
-              <span className="ml-1">{labels.month}</span>
-            </Button>
-            <Button
-              variant={view === 'week' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('week')}
-              className="h-8"
-            >
-              <Grid3x3 className="h-4 w-4" />
-              <span className="ml-1">{labels.week}</span>
-            </Button>
-            <Button
-              variant={view === 'day' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('day')}
-              className="h-8"
-            >
-              <Clock className="h-4 w-4" />
-              <span className="ml-1">{labels.day}</span>
-            </Button>
-            <Button
-              variant={view === 'list' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setView('list')}
-              className="h-8"
-            >
-              <List className="h-4 w-4" />
-              <span className="ml-1">{labels.list}</span>
-            </Button>
-          </div>
-
-          <Button
-            onClick={() => {
-              setIsCreating(true);
-              setIsDialogOpen(true);
-            }}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {labels.newEvent}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={labels.searchPlaceholder}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-          {searchQuery && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
-              onClick={() => setSearchQuery('')}
-              aria-label={labels.clearSearch}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        {/* Mobile: Horizontal scroll with full-length buttons */}
-        <div className="sm:hidden -mx-4 px-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {/* Color Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 whitespace-nowrap flex-shrink-0 bg-transparent"
-                >
-                  <Filter className="h-4 w-4" />
-                  {labels.colors}
-                  {selectedColors.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {selectedColors.length}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>{labels.filterByColor}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {colors.map((color) => (
-                  <DropdownMenuCheckboxItem
-                    key={color.value}
-                    checked={selectedColors.includes(color.value)}
-                    onCheckedChange={(checked) => {
-                      setSelectedColors((prev) =>
-                        checked
-                          ? [...prev, color.value]
-                          : prev.filter((c) => c !== color.value),
-                      );
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={cn('h-3 w-3 rounded', color.bg)} />
-                      {color.name}
-                    </div>
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Tag Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 whitespace-nowrap flex-shrink-0 bg-transparent"
-                >
-                  <Filter className="h-4 w-4" />
-                  {labels.tags}
-                  {selectedTags.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {selectedTags.length}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>{labels.filterByTag}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {availableTags.map((tag) => (
-                  <DropdownMenuCheckboxItem
-                    key={tag}
-                    checked={selectedTags.includes(tag)}
-                    onCheckedChange={(checked) => {
-                      setSelectedTags((prev) =>
-                        checked
-                          ? [...prev, tag]
-                          : prev.filter((t) => t !== tag),
-                      );
-                    }}
-                  >
-                    {tag}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Category Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 whitespace-nowrap flex-shrink-0 bg-transparent"
-                >
-                  <Filter className="h-4 w-4" />
-                  {labels.categories}
-                  {selectedCategories.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {selectedCategories.length}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>{labels.filterByCategory}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {categories.map((category) => (
-                  <DropdownMenuCheckboxItem
-                    key={category}
-                    checked={selectedCategories.includes(category)}
-                    onCheckedChange={(checked) => {
-                      setSelectedCategories((prev) =>
-                        checked
-                          ? [...prev, category]
-                          : prev.filter((c) => c !== category),
-                      );
-                    }}
-                  >
-                    {category}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {hasActiveFilters && (
+    <div className={cn('tw-root flex flex-col gap-4 text-[15px]', className)}>
+      {/* Toolbar: navigation, view switch, search and filters in one framed panel */}
+      <div className="rounded-lg border bg-card shadow-sm">
+        <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigateDate('prev')}
+                className="h-8 w-8"
+                aria-label={labels.previousPeriod}
+                disabled={view === 'list'}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={clearFilters}
-                className="gap-2 whitespace-nowrap flex-shrink-0"
+                onClick={goToToday}
+                className="h-8 px-2 text-xs font-semibold"
               >
-                <X className="h-4 w-4" />
-                {labels.clearFilters}
+                {labels.today}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigateDate('next')}
+                className="h-8 w-8"
+                aria-label={labels.nextPeriod}
+                disabled={view === 'list'}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <h2 className="text-lg font-bold tracking-[-0.02em] tabular-nums sm:text-xl">
+              {periodTitle}
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* Mobile: Select dropdown */}
+            <div className="sm:hidden">
+              <Select
+                value={view}
+                onValueChange={(value) =>
+                  setView(value as 'month' | 'week' | 'day' | 'list')
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {viewOptions.map(({ value, icon: Icon, long }) => (
+                    <SelectItem key={value} value={value}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        {long}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Desktop: Button group */}
+            <div className="hidden sm:flex items-center gap-1 rounded-md border bg-background p-1">
+              {viewOptions.map(({ value, icon: Icon, short }) => (
+                <Button
+                  key={value}
+                  variant={view === value ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView(value)}
+                  className="h-8 px-2.5 text-xs font-semibold"
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="ml-1.5">{short}</span>
+                </Button>
+              ))}
+            </div>
+
+            {isTrimmedRange && (view === 'week' || view === 'day') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllHours((prev) => !prev)}
+                className="h-9 gap-1.5 bg-transparent text-xs font-semibold"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                {showAllHours ? labels.showCoreHours : labels.showAllHours}
               </Button>
             )}
+
+            <Button
+              onClick={() => {
+                setIsCreating(true);
+                setSelectedEvent(null);
+                setIsDialogOpen(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              {labels.newEvent}
+            </Button>
           </div>
         </div>
 
-        {/* Desktop: Original layout */}
-        <div className="hidden sm:flex items-center gap-2">
-          {/* Color Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        <div className="flex flex-col gap-2 border-t p-3 sm:p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={labels.searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            {searchQuery && (
               <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 bg-transparent"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                onClick={() => setSearchQuery('')}
+                aria-label={labels.clearSearch}
               >
-                <Filter className="h-4 w-4" />
-                {labels.colors}
-                {selectedColors.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1">
-                    {selectedColors.length}
-                  </Badge>
-                )}
+                <X className="h-4 w-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>{labels.filterByColor}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {colors.map((color) => (
-                <DropdownMenuCheckboxItem
-                  key={color.value}
-                  checked={selectedColors.includes(color.value)}
-                  onCheckedChange={(checked) => {
-                    setSelectedColors((prev) =>
-                      checked
-                        ? [...prev, color.value]
-                        : prev.filter((c) => c !== color.value),
-                    );
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn('h-3 w-3 rounded', color.bg)} />
-                    {color.name}
-                  </div>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+          </div>
 
-          {/* Tag Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 bg-transparent"
-              >
-                <Filter className="h-4 w-4" />
-                {labels.tags}
-                {selectedTags.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1">
-                    {selectedTags.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>{labels.filterByTag}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {availableTags.map((tag) => (
-                <DropdownMenuCheckboxItem
-                  key={tag}
-                  checked={selectedTags.includes(tag)}
-                  onCheckedChange={(checked) => {
-                    setSelectedTags((prev) =>
-                      checked ? [...prev, tag] : prev.filter((t) => t !== tag),
-                    );
-                  }}
-                >
-                  {tag}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="-mx-3 px-3 sm:mx-0 sm:px-0">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide sm:pb-0">
+              {/* Color Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-shrink-0 gap-2 whitespace-nowrap bg-transparent text-xs font-semibold"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    {labels.colors}
+                    {selectedColors.length > 0 && (
+                      <Badge variant="secondary" className="ml-0.5 h-5 px-1.5">
+                        {selectedColors.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>{labels.filterByColor}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {colors.map((color) => (
+                    <DropdownMenuCheckboxItem
+                      key={color.value}
+                      checked={selectedColors.includes(color.value)}
+                      onCheckedChange={(checked) => {
+                        setSelectedColors((prev) =>
+                          checked
+                            ? [...prev, color.value]
+                            : prev.filter((c) => c !== color.value),
+                        );
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn('h-3 w-3 rounded', color.bg)} />
+                        {color.name}
+                      </div>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-          {/* Category Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 bg-transparent"
-              >
-                <Filter className="h-4 w-4" />
-                {labels.categories}
-                {selectedCategories.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1">
-                    {selectedCategories.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>{labels.filterByCategory}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {categories.map((category) => (
-                <DropdownMenuCheckboxItem
-                  key={category}
-                  checked={selectedCategories.includes(category)}
-                  onCheckedChange={(checked) => {
-                    setSelectedCategories((prev) =>
-                      checked
-                        ? [...prev, category]
-                        : prev.filter((c) => c !== category),
-                    );
-                  }}
+              {/* Tag Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-shrink-0 gap-2 whitespace-nowrap bg-transparent text-xs font-semibold"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    {labels.tags}
+                    {selectedTags.length > 0 && (
+                      <Badge variant="secondary" className="ml-0.5 h-5 px-1.5">
+                        {selectedTags.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>{labels.filterByTag}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {availableTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag}
+                      checked={selectedTags.includes(tag)}
+                      onCheckedChange={(checked) => {
+                        setSelectedTags((prev) =>
+                          checked
+                            ? [...prev, tag]
+                            : prev.filter((t) => t !== tag),
+                        );
+                      }}
+                    >
+                      {tag}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Category Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-shrink-0 gap-2 whitespace-nowrap bg-transparent text-xs font-semibold"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    {labels.categories}
+                    {selectedCategories.length > 0 && (
+                      <Badge variant="secondary" className="ml-0.5 h-5 px-1.5">
+                        {selectedCategories.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>
+                    {labels.filterByCategory}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {categories.map((category) => (
+                    <DropdownMenuCheckboxItem
+                      key={category}
+                      checked={selectedCategories.includes(category)}
+                      onCheckedChange={(checked) => {
+                        setSelectedCategories((prev) =>
+                          checked
+                            ? [...prev, category]
+                            : prev.filter((c) => c !== category),
+                        );
+                      }}
+                    >
+                      {category}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="flex-shrink-0 gap-1.5 whitespace-nowrap text-xs font-semibold"
                 >
-                  {category}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <X className="h-3.5 w-3.5" />
+                  {labels.clear}
+                </Button>
+              )}
+            </div>
+          </div>
 
           {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="gap-2"
-            >
-              <X className="h-4 w-4" />
-              {labels.clear}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <span className={sectionLabel}>{labels.activeFilters}</span>
+              {selectedColors.map((colorValue) => {
+                const color = getColorClasses(colorValue);
+                return (
+                  <Badge key={colorValue} variant="secondary" className="gap-1">
+                    <div className={cn('h-2 w-2 rounded-full', color.bg)} />
+                    {color.name}
+                    <button
+                      onClick={() =>
+                        setSelectedColors((prev) =>
+                          prev.filter((c) => c !== colorValue),
+                        )
+                      }
+                      className="ml-1 hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
+              {selectedTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="gap-1">
+                  {tag}
+                  <button
+                    onClick={() =>
+                      setSelectedTags((prev) => prev.filter((t) => t !== tag))
+                    }
+                    className="ml-1 hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+              {selectedCategories.map((category) => (
+                <Badge key={category} variant="secondary" className="gap-1">
+                  {category}
+                  <button
+                    onClick={() =>
+                      setSelectedCategories((prev) =>
+                        prev.filter((c) => c !== category),
+                      )
+                    }
+                    className="ml-1 hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
           )}
         </div>
       </div>
 
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {labels.activeFilters}
-          </span>
-          {selectedColors.map((colorValue) => {
-            const color = getColorClasses(colorValue);
-            return (
-              <Badge key={colorValue} variant="secondary" className="gap-1">
-                <div className={cn('h-2 w-2 rounded-full', color.bg)} />
-                {color.name}
-                <button
-                  onClick={() =>
-                    setSelectedColors((prev) =>
-                      prev.filter((c) => c !== colorValue),
-                    )
-                  }
-                  className="ml-1 hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            );
-          })}
-          {selectedTags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="gap-1">
-              {tag}
-              <button
-                onClick={() =>
-                  setSelectedTags((prev) => prev.filter((t) => t !== tag))
-                }
-                className="ml-1 hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-          {selectedCategories.map((category) => (
-            <Badge key={category} variant="secondary" className="gap-1">
-              {category}
-              <button
-                onClick={() =>
-                  setSelectedCategories((prev) =>
-                    prev.filter((c) => c !== category),
-                  )
-                }
-                className="ml-1 hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+      {/* Calendar + selected day agenda */}
+      <div
+        className={cn(
+          'grid gap-4',
+          showAgenda && 'xl:grid-cols-[minmax(0,1fr)_17rem]',
+        )}
+      >
+        <div className="min-w-0">
+          {view === 'month' && (
+            <MonthView
+              currentDate={currentDate}
+              selectedDate={selectedDate}
+              events={filteredEvents}
+              onEventClick={openEvent}
+              onDaySelect={selectDay}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              getColorClasses={getColorClasses}
+              locale={locale}
+              labels={labels}
+            />
+          )}
+
+          {view === 'week' && (
+            <WeekView
+              currentDate={currentDate}
+              selectedDate={selectedDate}
+              events={filteredEvents}
+              hours={hours}
+              onEventClick={openEvent}
+              onDaySelect={selectDay}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              getColorClasses={getColorClasses}
+              locale={locale}
+              labels={labels}
+            />
+          )}
+
+          {view === 'day' && (
+            <DayView
+              currentDate={currentDate}
+              events={filteredEvents}
+              hours={hours}
+              onEventClick={openEvent}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              getColorClasses={getColorClasses}
+              locale={locale}
+              labels={labels}
+            />
+          )}
+
+          {view === 'list' && (
+            <ListView
+              events={filteredEvents}
+              onEventClick={openEvent}
+              getColorClasses={getColorClasses}
+              locale={locale}
+              labels={labels}
+            />
+          )}
         </div>
-      )}
 
-      {/* Calendar Views - Pass filteredEvents instead of events */}
-      {view === 'month' && (
-        <MonthView
-          currentDate={currentDate}
-          events={filteredEvents}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-            setIsDialogOpen(true);
-          }}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDrop={handleDrop}
-          getColorClasses={getColorClasses}
-          locale={locale}
-          labels={labels}
-        />
-      )}
-
-      {view === 'week' && (
-        <WeekView
-          currentDate={currentDate}
-          events={filteredEvents}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-            setIsDialogOpen(true);
-          }}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDrop={handleDrop}
-          getColorClasses={getColorClasses}
-          locale={locale}
-          labels={labels}
-        />
-      )}
-
-      {view === 'day' && (
-        <DayView
-          currentDate={currentDate}
-          events={filteredEvents}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-            setIsDialogOpen(true);
-          }}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDrop={handleDrop}
-          getColorClasses={getColorClasses}
-          locale={locale}
-          labels={labels}
-        />
-      )}
-
-      {view === 'list' && (
-        <ListView
-          events={filteredEvents}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-            setIsDialogOpen(true);
-          }}
-          getColorClasses={getColorClasses}
-          locale={locale}
-          labels={labels}
-        />
-      )}
+        {showAgenda && (
+          <AgendaPanel
+            selectedDate={selectedDate}
+            events={selectedDayEvents}
+            onEventClick={openEvent}
+            getColorClasses={getColorClasses}
+            locale={locale}
+            labels={labels}
+          />
+        )}
+      </div>
 
       {/* Event Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1220,6 +1190,186 @@ export function EventManager({
 
 type ColorResolver = (color: string) => { bg: string; text: string };
 
+/**
+ * 미리보기 카드를 document.body 로 빼서 띄운다.
+ * 달력 Card 는 모서리를 다듬기 위해 overflow-hidden 이라, 안에서 absolute 로 띄우면
+ * 마지막 주·오른쪽 열의 카드가 테두리에 잘린다. 포털 + fixed 로 화면 기준 배치한다.
+ */
+export interface PreviewRect {
+  top: number;
+  bottom: number;
+  left: number;
+}
+
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+/** 미리보기 카드 위치. 높이를 몰라도 되도록, 위로 붙일 때는 top 대신 bottom 을 쓴다. */
+export interface PreviewBox {
+  left: number;
+  top?: number;
+  bottom?: number;
+  placement: 'below' | 'above';
+}
+
+const PREVIEW_GAP = 8;
+const PREVIEW_MARGIN = 12;
+/** 아래로 펼치기 위해 필요한 최소 여유 높이 */
+const PREVIEW_MIN_SPACE = 220;
+
+/**
+ * 마우스를 올린 칸의 좌표만으로 최종 위치를 바로 계산한다.
+ * 카드 높이를 재지 않기 때문에 "그린 뒤 옮기기"가 없고, 등장 애니메이션이
+ * 처음부터 제자리에서 재생된다.
+ */
+export function computePreviewBox(
+  anchor: PreviewRect,
+  width: number,
+  viewport: Viewport,
+): PreviewBox {
+  const left = Math.min(
+    Math.max(PREVIEW_MARGIN, anchor.left),
+    Math.max(PREVIEW_MARGIN, viewport.width - width - PREVIEW_MARGIN),
+  );
+
+  const spaceBelow = viewport.height - anchor.bottom;
+  const spaceAbove = anchor.top;
+  // 아래가 좁고 위가 더 넓을 때만 뒤집는다.
+  if (spaceBelow < PREVIEW_MIN_SPACE && spaceAbove > spaceBelow) {
+    return {
+      left,
+      bottom: Math.max(PREVIEW_MARGIN, viewport.height - anchor.top + PREVIEW_GAP),
+      placement: 'above',
+    };
+  }
+
+  return { left, top: anchor.bottom + PREVIEW_GAP, placement: 'below' };
+}
+
+/**
+ * 미리보기 카드를 document.body 로 빼서 띄운다.
+ * 달력 Card 는 모서리를 다듬기 위해 overflow-hidden 이고 주 보기는 내부 스크롤이 있어서,
+ * 안에서 absolute 로 띄우면 마지막 주·오른쪽 열의 카드가 잘린다.
+ */
+function EventPreviewPortal({
+  box,
+  width,
+  children,
+}: {
+  box: PreviewBox;
+  width: number;
+  children: React.ReactNode;
+}) {
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        left: box.left,
+        top: box.top,
+        bottom: box.bottom,
+        width,
+      }}
+      className={cn(
+        'tw-root pointer-events-none z-[70] animate-in fade-in duration-100',
+        box.placement === 'above' ? 'origin-bottom' : 'origin-top',
+      )}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+/** 마우스를 올린 요소의 화면 좌표에서 바로 위치를 뽑는다. */
+function boxFromElement(element: HTMLElement, width: number): PreviewBox {
+  const rect = element.getBoundingClientRect();
+  return computePreviewBox(rect, width, {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+}
+
+// Selected day agenda panel
+function AgendaPanel({
+  selectedDate,
+  events,
+  onEventClick,
+  getColorClasses,
+  locale,
+  labels,
+}: {
+  selectedDate: Date;
+  events: Event[];
+  onEventClick: (event: Event) => void;
+  getColorClasses: ColorResolver;
+  locale: string;
+  labels: EventManagerLabels;
+}) {
+  return (
+    <Card className="h-fit p-4 xl:sticky xl:top-4">
+      <p className={sectionLabel}>{labels.selectedDayLabel}</p>
+      <div className="mt-3 flex items-end gap-3 border-b pb-4">
+        <strong className="text-4xl font-bold leading-none tracking-[-0.04em] tabular-nums">
+          {selectedDate.getDate()}
+        </strong>
+        <span className="text-sm font-medium leading-snug text-muted-foreground">
+          {selectedDate.toLocaleDateString(locale, { month: 'long' })}
+          <br />
+          {selectedDate.toLocaleDateString(locale, { weekday: 'long' })}
+        </span>
+      </div>
+
+      {events.length > 0 ? (
+        <>
+          <p className="mt-3 text-xs font-medium text-muted-foreground">
+            {labels.eventCount(events.length)}
+          </p>
+          <div className="mt-2 space-y-2">
+            {events.map((event) => {
+              const colorClasses = getColorClasses(event.color);
+              return (
+                <button
+                  type="button"
+                  key={event.id}
+                  onClick={() => onEventClick(event)}
+                  className="flex w-full items-start gap-2.5 rounded-md border bg-card p-2.5 text-left transition-colors hover:bg-accent/50"
+                >
+                  <span
+                    className={cn(
+                      'mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full',
+                      colorClasses.bg,
+                    )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-medium tabular-nums text-muted-foreground">
+                      {event.startTime.toLocaleTimeString(locale, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {event.category ? ` · ${event.category}` : ''}
+                    </span>
+                    <span className="mt-0.5 block truncate text-sm font-semibold">
+                      {event.title}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          {labels.noEventsForDay}
+        </p>
+      )}
+    </Card>
+  );
+}
+
 // EventCard component with hover effect
 function EventCard({
   event,
@@ -1240,7 +1390,9 @@ function EventCard({
   locale: string;
   labels: EventManagerLabels;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
+  // 미리보기 위치는 mouseenter 시점에 확정한다. 첫 렌더부터 제자리에 그려진다.
+  const [preview, setPreview] = useState<PreviewBox | null>(null);
+  const isHovered = preview !== null;
   const colorClasses = getColorClasses(event.color);
 
   const formatTime = (date: Date) => {
@@ -1263,17 +1415,20 @@ function EventCard({
   if (variant === 'compact') {
     return (
       <div
-        draggable
+        draggable={!event.locked}
         onDragStart={() => onDragStart(event)}
         onDragEnd={onDragEnd}
-        onClick={() => onEventClick(event)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEventClick(event);
+        }}
+        onMouseEnter={(e) => setPreview(boxFromElement(e.currentTarget, 272))}
+        onMouseLeave={() => setPreview(null)}
         className="relative cursor-pointer"
       >
         <div
           className={cn(
-            'rounded px-1.5 py-0.5 text-xs font-medium transition-all duration-300',
+            'rounded px-1.5 py-0.5 text-[11px] font-semibold leading-tight transition-all duration-300',
             colorClasses.bg,
             'text-white truncate animate-in fade-in slide-in-from-top-1',
             isHovered && 'scale-105 shadow-lg z-10',
@@ -1282,12 +1437,12 @@ function EventCard({
           {event.title}
         </div>
 
-        {isHovered && (
-          <div className="absolute left-0 top-full z-50 mt-1 w-64 animate-in fade-in slide-in-from-top-2 duration-200">
+        {preview && (
+          <EventPreviewPortal box={preview} width={272}>
             <Card className="border-2 p-3 shadow-xl">
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-semibold text-sm leading-tight">
+                  <h4 className="text-sm font-bold leading-tight">
                     {event.title}
                   </h4>
                   <div
@@ -1298,11 +1453,11 @@ function EventCard({
                   />
                 </div>
                 {event.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
+                  <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
                     {event.description}
                   </p>
                 )}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   <span>
                     {formatTime(event.startTime)} - {formatTime(event.endTime)}
@@ -1327,7 +1482,7 @@ function EventCard({
                 </div>
               </div>
             </Card>
-          </div>
+          </EventPreviewPortal>
         )}
       </div>
     );
@@ -1336,38 +1491,39 @@ function EventCard({
   if (variant === 'detailed') {
     return (
       <div
-        draggable
+        draggable={!event.locked}
         onDragStart={() => onDragStart(event)}
         onDragEnd={onDragEnd}
         onClick={() => onEventClick(event)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={(e) => setPreview(boxFromElement(e.currentTarget, 288))}
+        onMouseLeave={() => setPreview(null)}
         className={cn(
-          'cursor-pointer rounded-lg p-3 transition-all duration-300',
+          'cursor-pointer rounded-lg px-3 py-2 transition-all duration-300',
           colorClasses.bg,
           'text-white animate-in fade-in slide-in-from-left-2',
-          isHovered && 'scale-[1.03] shadow-2xl ring-2 ring-white/50',
+          isHovered && 'scale-[1.01] shadow-xl ring-2 ring-white/50',
         )}
       >
-        <div className="font-semibold">{event.title}</div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-sm font-bold">{event.title}</span>
+          <span className="flex-shrink-0 text-[11px] tabular-nums opacity-90">
+            {formatTime(event.startTime)} - {formatTime(event.endTime)}
+          </span>
+        </div>
         {event.description && (
-          <div className="mt-1 text-sm opacity-90 line-clamp-2">
+          <div className="mt-0.5 text-xs leading-relaxed opacity-90 line-clamp-1">
             {event.description}
           </div>
         )}
-        <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
-          <Clock className="h-3 w-3" />
-          {formatTime(event.startTime)} - {formatTime(event.endTime)}
-        </div>
         {isHovered && (
           <div className="mt-2 flex flex-wrap gap-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
             {event.category && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-[10px] h-5">
                 {event.category}
               </Badge>
             )}
             {event.tags?.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs">
+              <Badge key={tag} variant="outline" className="text-[10px] h-5">
                 {tag}
               </Badge>
             ))}
@@ -1379,17 +1535,20 @@ function EventCard({
 
   return (
     <div
-      draggable
+      draggable={!event.locked}
       onDragStart={() => onDragStart(event)}
       onDragEnd={onDragEnd}
-      onClick={() => onEventClick(event)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEventClick(event);
+      }}
+      onMouseEnter={(e) => setPreview(boxFromElement(e.currentTarget, 288))}
+      onMouseLeave={() => setPreview(null)}
       className="relative"
     >
       <div
         className={cn(
-          'cursor-pointer rounded px-2 py-1 text-xs font-medium transition-all duration-300',
+          'cursor-pointer rounded px-1.5 py-0.5 text-[11px] font-semibold leading-tight transition-all duration-300',
           colorClasses.bg,
           'text-white animate-in fade-in slide-in-from-left-1',
           isHovered && 'scale-105 shadow-lg z-10',
@@ -1398,12 +1557,12 @@ function EventCard({
         <div className="truncate">{event.title}</div>
       </div>
 
-      {isHovered && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-72 animate-in fade-in slide-in-from-top-2 duration-200">
+      {preview && (
+        <EventPreviewPortal box={preview} width={288}>
           <Card className="border-2 p-4 shadow-xl">
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <h4 className="font-semibold leading-tight">{event.title}</h4>
+                <h4 className="font-bold leading-tight">{event.title}</h4>
                 <div
                   className={cn(
                     'h-4 w-4 rounded-full flex-shrink-0',
@@ -1412,12 +1571,12 @@ function EventCard({
                 />
               </div>
               {event.description && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {event.description}
                 </p>
               )}
               <div className="space-y-1.5">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
                   <span>
                     {formatTime(event.startTime)} - {formatTime(event.endTime)}
@@ -1439,7 +1598,7 @@ function EventCard({
               </div>
             </div>
           </Card>
-        </div>
+        </EventPreviewPortal>
       )}
     </div>
   );
@@ -1448,8 +1607,10 @@ function EventCard({
 // Month View Component
 function MonthView({
   currentDate,
+  selectedDate,
   events,
   onEventClick,
+  onDaySelect,
   onDragStart,
   onDragEnd,
   onDrop,
@@ -1458,8 +1619,10 @@ function MonthView({
   labels,
 }: {
   currentDate: Date;
+  selectedDate: Date;
   events: Event[];
   onEventClick: (event: Event) => void;
+  onDaySelect: (date: Date) => void;
   onDragStart: (event: Event) => void;
   onDragEnd: () => void;
   onDrop: (date: Date) => void;
@@ -1477,30 +1640,25 @@ function MonthView({
   startDate.setDate(startDate.getDate() - startDate.getDay());
 
   const days: Date[] = [];
-  const currentDay = new Date(startDate);
+  const cursor = new Date(startDate);
   for (let i = 0; i < 42; i++) {
-    days.push(new Date(currentDay));
-    currentDay.setDate(currentDay.getDate() + 1);
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  const getEventsForDay = (date: Date) => {
-    return events.filter((event) => {
-      const eventDate = new Date(event.startTime);
-      return (
-        eventDate.getDate() === date.getDate() &&
-        eventDate.getMonth() === date.getMonth() &&
-        eventDate.getFullYear() === date.getFullYear()
-      );
-    });
-  };
+  const getEventsForDay = (date: Date) =>
+    events.filter((event) => isSameDay(event.startTime, date));
 
   return (
     <Card className="overflow-hidden">
-      <div className="grid grid-cols-7 border-b">
-        {labels.weekdays.map((day) => (
+      <div className="grid grid-cols-7 border-b bg-muted/30">
+        {labels.weekdays.map((day, index) => (
           <div
             key={day}
-            className="border-r p-2 text-center text-xs font-medium last:border-r-0 sm:text-sm"
+            className={cn(
+              'border-r p-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] last:border-r-0',
+              index === 0 && 'text-destructive',
+            )}
           >
             <span className="hidden sm:inline">{day}</span>
             <span className="sm:hidden">{day.charAt(0)}</span>
@@ -1512,28 +1670,34 @@ function MonthView({
         {days.map((day, index) => {
           const dayEvents = getEventsForDay(day);
           const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-          const isToday = day.toDateString() === new Date().toDateString();
+          const isToday = isSameDay(day, new Date());
+          const isSelected = isSameDay(day, selectedDate);
 
           return (
             <div
               key={index}
+              role="gridcell"
+              aria-selected={isSelected}
+              onClick={() => onDaySelect(day)}
               className={cn(
-                'min-h-20 border-b border-r p-1 transition-colors last:border-r-0 sm:min-h-24 sm:p-2',
-                !isCurrentMonth && 'bg-muted/30',
+                'min-h-20 cursor-pointer border-b border-r p-1 transition-colors last:border-r-0 sm:min-h-24 sm:p-1.5',
+                !isCurrentMonth && 'bg-muted/30 text-muted-foreground',
                 'hover:bg-accent/50',
+                isSelected && 'bg-accent/60 ring-1 ring-inset ring-primary/40',
               )}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(day)}
             >
               <div
                 className={cn(
-                  'mb-1 flex h-5 w-5 items-center justify-center rounded-full text-xs sm:h-6 sm:w-6 sm:text-sm',
-                  isToday && 'bg-primary text-primary-foreground font-semibold',
+                  'mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
+                  isToday && 'bg-primary text-primary-foreground',
+                  !isToday && isSelected && 'bg-primary/10 text-foreground',
                 )}
               >
                 {day.getDate()}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {dayEvents.slice(0, 3).map((event) => (
                   <EventCard
                     key={event.id}
@@ -1548,7 +1712,7 @@ function MonthView({
                   />
                 ))}
                 {dayEvents.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground sm:text-xs">
+                  <div className="pl-1 text-[10px] font-medium text-muted-foreground">
                     {labels.more(dayEvents.length - 3)}
                   </div>
                 )}
@@ -1564,8 +1728,11 @@ function MonthView({
 // Week View Component
 function WeekView({
   currentDate,
+  selectedDate,
   events,
+  hours,
   onEventClick,
+  onDaySelect,
   onDragStart,
   onDragEnd,
   onDrop,
@@ -1574,8 +1741,11 @@ function WeekView({
   labels,
 }: {
   currentDate: Date;
+  selectedDate: Date;
   events: Event[];
+  hours: number[];
   onEventClick: (event: Event) => void;
+  onDaySelect: (date: Date) => void;
   onDragStart: (event: Event) => void;
   onDragEnd: () => void;
   onDrop: (date: Date, hour: number) => void;
@@ -1592,84 +1762,120 @@ function WeekView({
     return day;
   });
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const getEventsForDayAndHour = (date: Date, hour: number) =>
+    events.filter(
+      (event) =>
+        isSameDay(event.startTime, date) && event.startTime.getHours() === hour,
+    );
 
-  const getEventsForDayAndHour = (date: Date, hour: number) => {
-    return events.filter((event) => {
-      const eventDate = new Date(event.startTime);
-      const eventHour = eventDate.getHours();
-      return (
-        eventDate.getDate() === date.getDate() &&
-        eventDate.getMonth() === date.getMonth() &&
-        eventDate.getFullYear() === date.getFullYear() &&
-        eventHour === hour
-      );
-    });
-  };
+  const outsideRange = events.filter(
+    (event) =>
+      weekDays.some((day) => isSameDay(event.startTime, day)) &&
+      !hours.includes(event.startTime.getHours()),
+  );
 
   return (
-    <Card className="overflow-auto">
-      <div className="grid grid-cols-8 border-b">
-        <div className="border-r p-2 text-center text-xs font-medium sm:text-sm">
-          {labels.timeColumn}
-        </div>
-        {weekDays.map((day) => (
-          <div
-            key={day.toISOString()}
-            className="border-r p-2 text-center text-xs font-medium last:border-r-0 sm:text-sm"
-          >
-            <div className="hidden sm:block">
-              {day.toLocaleDateString(locale, { weekday: 'short' })}
-            </div>
-            <div className="sm:hidden">
-              {day.toLocaleDateString(locale, { weekday: 'narrow' })}
-            </div>
-            <div className="text-[10px] text-muted-foreground sm:text-xs">
-              {day.toLocaleDateString(locale, {
-                month: 'short',
-                day: 'numeric',
-              })}
-            </div>
+    <Card className="overflow-hidden">
+      <div className="max-h-[32rem] overflow-auto">
+        <div className="grid min-w-[38rem] grid-cols-[3rem_repeat(7,minmax(0,1fr))]">
+          <div className="sticky top-0 z-20 border-b border-r bg-muted/50 p-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {labels.timeColumn}
           </div>
-        ))}
+          {weekDays.map((day) => {
+            const isToday = isSameDay(day, new Date());
+            const isSelected = isSameDay(day, selectedDate);
+            return (
+              <button
+                type="button"
+                key={day.toISOString()}
+                onClick={() => onDaySelect(day)}
+                className={cn(
+                  'sticky top-0 z-20 border-b border-r bg-muted/50 p-2 text-center last:border-r-0 transition-colors hover:bg-accent/60',
+                  isSelected && 'bg-accent',
+                )}
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  {day.toLocaleDateString(locale, { weekday: 'short' })}
+                </div>
+                <div
+                  className={cn(
+                    'mx-auto mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+                    isToday && 'bg-primary text-primary-foreground',
+                  )}
+                >
+                  {day.getDate()}
+                </div>
+              </button>
+            );
+          })}
+
+          {hours.map((hour) => (
+            <React.Fragment key={hour}>
+              <div className="border-b border-r bg-card p-1 text-right text-[10px] font-medium tabular-nums text-muted-foreground">
+                {hour.toString().padStart(2, '0')}
+              </div>
+              {weekDays.map((day) => {
+                const dayEvents = getEventsForDayAndHour(day, hour);
+                return (
+                  <div
+                    key={`${day.toISOString()}-${hour}`}
+                    className="min-h-9 border-b border-r p-0.5 transition-colors last:border-r-0 hover:bg-accent/40"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => onDrop(day, hour)}
+                    onClick={() => onDaySelect(day)}
+                  >
+                    <div className="space-y-0.5">
+                      {dayEvents.map((event) => (
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          onEventClick={onEventClick}
+                          onDragStart={onDragStart}
+                          onDragEnd={onDragEnd}
+                          getColorClasses={getColorClasses}
+                          variant="default"
+                          locale={locale}
+                          labels={labels}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-8">
-        {hours.map((hour) => (
-          <React.Fragment key={hour}>
-            <div className="border-b border-r p-1 text-[10px] text-muted-foreground sm:p-2 sm:text-xs">
-              {hour.toString().padStart(2, '0')}:00
-            </div>
-            {weekDays.map((day) => {
-              const dayEvents = getEventsForDayAndHour(day, hour);
-              return (
-                <div
-                  key={`${day.toISOString()}-${hour}`}
-                  className="min-h-12 border-b border-r p-0.5 transition-colors hover:bg-accent/50 last:border-r-0 sm:min-h-16 sm:p-1"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => onDrop(day, hour)}
-                >
-                  <div className="space-y-1">
-                    {dayEvents.map((event) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        onEventClick={onEventClick}
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                        getColorClasses={getColorClasses}
-                        variant="default"
-                        locale={locale}
-                        labels={labels}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
-      </div>
+      {outsideRange.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {labels.outsideRange}
+          </span>
+          {outsideRange.map((event) => (
+            <button
+              type="button"
+              key={event.id}
+              onClick={() => onEventClick(event)}
+              className="flex items-center gap-1.5 rounded-full border bg-card px-2 py-0.5 text-[11px] font-medium hover:bg-accent/60"
+            >
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  getColorClasses(event.color).bg,
+                )}
+              />
+              <span className="tabular-nums text-muted-foreground">
+                {event.startTime.toLocaleTimeString(locale, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+              {event.title}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1678,6 +1884,7 @@ function WeekView({
 function DayView({
   currentDate,
   events,
+  hours,
   onEventClick,
   onDragStart,
   onDragEnd,
@@ -1688,6 +1895,7 @@ function DayView({
 }: {
   currentDate: Date;
   events: Event[];
+  hours: number[];
   onEventClick: (event: Event) => void;
   onDragStart: (event: Event) => void;
   onDragEnd: () => void;
@@ -1696,38 +1904,42 @@ function DayView({
   locale: string;
   labels: EventManagerLabels;
 }) {
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const getEventsForHour = (hour: number) =>
+    events.filter(
+      (event) =>
+        isSameDay(event.startTime, currentDate) &&
+        event.startTime.getHours() === hour,
+    );
 
-  const getEventsForHour = (hour: number) => {
-    return events.filter((event) => {
-      const eventDate = new Date(event.startTime);
-      const eventHour = eventDate.getHours();
-      return (
-        eventDate.getDate() === currentDate.getDate() &&
-        eventDate.getMonth() === currentDate.getMonth() &&
-        eventDate.getFullYear() === currentDate.getFullYear() &&
-        eventHour === hour
-      );
-    });
-  };
+  const outsideRange = events.filter(
+    (event) =>
+      isSameDay(event.startTime, currentDate) &&
+      !hours.includes(event.startTime.getHours()),
+  );
 
   return (
-    <Card className="overflow-auto">
-      <div className="space-y-0">
+    <Card className="overflow-hidden">
+      <div className="max-h-[32rem] overflow-auto">
         {hours.map((hour) => {
           const hourEvents = getEventsForHour(hour);
+          const isCurrentHour =
+            isSameDay(currentDate, new Date()) &&
+            new Date().getHours() === hour;
           return (
             <div
               key={hour}
-              className="flex border-b last:border-b-0"
+              className={cn(
+                'flex border-b last:border-b-0',
+                isCurrentHour && 'bg-primary/5',
+              )}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(currentDate, hour)}
             >
-              <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-muted-foreground sm:w-20 sm:p-3 sm:text-sm">
+              <div className="w-14 flex-shrink-0 border-r p-2 text-right text-[11px] font-medium tabular-nums text-muted-foreground">
                 {hour.toString().padStart(2, '0')}:00
               </div>
-              <div className="min-h-16 flex-1 p-1 transition-colors hover:bg-accent/50 sm:min-h-20 sm:p-2">
-                <div className="space-y-2">
+              <div className="min-h-11 flex-1 p-1 transition-colors hover:bg-accent/40">
+                <div className="space-y-1">
                   {hourEvents.map((event) => (
                     <EventCard
                       key={event.id}
@@ -1747,6 +1959,36 @@ function DayView({
           );
         })}
       </div>
+
+      {outsideRange.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {labels.outsideRange}
+          </span>
+          {outsideRange.map((event) => (
+            <button
+              type="button"
+              key={event.id}
+              onClick={() => onEventClick(event)}
+              className="flex items-center gap-1.5 rounded-full border bg-card px-2 py-0.5 text-[11px] font-medium hover:bg-accent/60"
+            >
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  getColorClasses(event.color).bg,
+                )}
+              />
+              <span className="tabular-nums text-muted-foreground">
+                {event.startTime.toLocaleTimeString(locale, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+              {event.title}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1791,7 +2033,7 @@ function ListView({
       <div className="space-y-6">
         {Object.entries(groupedEvents).map(([date, dateEvents]) => (
           <div key={date} className="space-y-3">
-            <h3 className="text-xs font-semibold text-muted-foreground sm:text-sm">
+            <h3 className="text-xs font-semibold tracking-[0.02em] text-muted-foreground sm:text-sm">
               {date}
             </h3>
             <div className="space-y-2">
@@ -1801,7 +2043,7 @@ function ListView({
                   <div
                     key={event.id}
                     onClick={() => onEventClick(event)}
-                    className="group cursor-pointer rounded-lg border bg-card p-3 transition-all hover:shadow-md hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-2 duration-300 sm:p-4"
+                    className="group cursor-pointer rounded-lg border bg-card p-3 transition-all hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300 sm:p-4"
                   >
                     <div className="flex items-start gap-2 sm:gap-3">
                       <div
@@ -1813,11 +2055,11 @@ function ListView({
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
-                            <h4 className="font-semibold text-sm group-hover:text-primary transition-colors sm:text-base truncate">
+                            <h4 className="truncate text-sm font-bold transition-colors group-hover:text-primary sm:text-base">
                               {event.title}
                             </h4>
                             {event.description && (
-                              <p className="mt-1 text-xs text-muted-foreground sm:text-sm line-clamp-2">
+                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2 sm:text-sm">
                                 {event.description}
                               </p>
                             )}
@@ -1830,8 +2072,8 @@ function ListView({
                             )}
                           </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground sm:gap-4 sm:text-xs">
-                          <div className="flex items-center gap-1">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground sm:gap-4 sm:text-xs">
+                          <div className="flex items-center gap-1 tabular-nums">
                             <Clock className="h-3 w-3" />
                             {event.startTime.toLocaleTimeString(locale, {
                               hour: '2-digit',

@@ -1,3 +1,5 @@
+import type { DecisionState } from './lib/decisionStore';
+
 export type Accent = 'blue' | 'pink' | 'yellow' | 'green';
 
 export interface Opportunity {
@@ -8,8 +10,14 @@ export interface Opportunity {
   dDay: number;
   deadline: string;
   savedFrom: string;
+  /** 원문 링크. 로컬 시드 값이며 실제 게시물 주소로 교체 대상이다. */
+  sourceUrl: string;
   savedAt: string;
   accent: Accent;
+  /** 조건 판정 시드. 판정 API를 호출할 수 없을 때 화면 폴백으로 쓴다. */
+  verdict: 'pass' | 'needsCheck';
+  /** 사용자 결정 시드. 이후 결정은 decisionStore(localStorage)가 관리한다. */
+  initialDecision: DecisionState;
   reason: string;
   summary: string;
   eligibility: string[];
@@ -25,8 +33,11 @@ export const opportunities: Opportunity[] = [
     dDay: 2,
     deadline: '2026. 08. 15',
     savedFrom: 'Instagram',
+    sourceUrl: 'https://www.instagram.com/p/keepon-aws-ai-challenge/',
     savedAt: '오늘',
     accent: 'yellow',
+    verdict: 'pass',
+    initialDecision: 'joined',
     reason: 'AI·클라우드 관심사와 맞고, 지금 바로 시작해도 제출까지 필요한 시간을 확보할 수 있어요.',
     summary: '생성형 AI를 활용해 실제 문제를 해결하는 아이디어와 프로토타입을 제안하는 대학생 대상 챌린지입니다.',
     eligibility: ['국내 대학(원)생', '개인 또는 4인 이하 팀', '프로토타입 제출 가능'],
@@ -45,8 +56,11 @@ export const opportunities: Opportunity[] = [
     dDay: 7,
     deadline: '2026. 08. 20',
     savedFrom: 'Threads',
+    sourceUrl: 'https://www.threads.net/@keepon/post/cloud-campus',
     savedAt: '어제',
     accent: 'blue',
+    verdict: 'pass',
+    initialDecision: 'none',
     reason: '주 4시간 온라인 과정이라 현재 일정 안에서 무리 없이 수강할 수 있어요.',
     summary: '클라우드 아키텍처와 배포 실습을 중심으로 포트폴리오까지 완성하는 6주 실무 과정입니다.',
     eligibility: ['만 34세 이하', '온라인 수강 가능', '기초 개발 경험 권장'],
@@ -63,8 +77,11 @@ export const opportunities: Opportunity[] = [
     dDay: 11,
     deadline: '2026. 08. 24',
     savedFrom: 'Instagram',
+    sourceUrl: 'https://www.instagram.com/p/keepon-youth-rent/',
     savedAt: '3일 전',
     accent: 'pink',
+    verdict: 'needsCheck',
+    initialDecision: 'none',
     reason: '연령 조건은 맞지만 소득·주거 조건을 한 번 더 확인해야 해요.',
     summary: '독립 거주 청년의 월세 부담을 줄이기 위해 최대 12개월 동안 월세를 지원하는 정책입니다.',
     eligibility: ['만 19~34세', '부모와 별도 거주', '소득·재산 기준 충족'],
@@ -81,8 +98,11 @@ export const opportunities: Opportunity[] = [
     dDay: 18,
     deadline: '2026. 08. 31',
     savedFrom: 'Threads',
+    sourceUrl: 'https://www.threads.net/@keepon/post/coss-supporters',
     savedAt: '5일 전',
     accent: 'green',
+    verdict: 'pass',
+    initialDecision: 'none',
     reason: '콘텐츠 제작 경험을 살리면서 다른 대학 학생들과 협업할 수 있는 기회예요.',
     summary: '첨단분야 교육 프로그램을 직접 경험하고 카드뉴스와 영상으로 알리는 대학생 서포터즈입니다.',
     eligibility: ['대학생', '월 2회 콘텐츠 제작', '오프라인 행사 참여 가능'],
