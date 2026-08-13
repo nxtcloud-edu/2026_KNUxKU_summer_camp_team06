@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createKeeperServer } from '../server/index.js';
 
-async function waitForTerminal(baseUrl, intakeId) {
+async function waitForTerminal(baseUrl, intakeId, accessToken = '') {
   const terminal = new Set(['READY_FOR_REVIEW', 'NEEDS_REVIEW', 'UNSUPPORTED', 'FAILED', 'CANCELLED']);
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const response = await fetch(`${baseUrl}/v1/intakes/${intakeId}`);
+    const response = await fetch(`${baseUrl}/v1/intakes/${intakeId}`, {
+      headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {}
+    });
     const intake = await response.json();
     if (terminal.has(intake.status)) return intake;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -331,4 +333,51 @@ test('플랫폼 제목만 있고 본문이 없으면 READY가 아니라 NEEDS_RE
   const list = await (await fetch(`${baseUrl}/v1/opportunities`)).json();
   assert.equal(list.items[0].needs_review, true);
   assert.ok(list.items[0].error_codes.includes('CONTENT_INSUFFICIENT'));
+});
+
+test('인증 모드에서는 Bearer 토큰의 사용자별 저장소만 사용한다', async (t) => {
+  const authService = {
+    async authenticate(headers) {
+      if (headers.authorization === 'Bearer user-a-token') {
+        return { userId: 'user-a', accessToken: 'user-a-token', email: 'a@example.com' };
+      }
+      if (headers.authorization === 'Bearer user-b-token') {
+        return { userId: 'user-b', accessToken: 'user-b-token', email: 'b@example.com' };
+      }
+      return null;
+    }
+  };
+  const app = createKeeperServer({ port: 0, authService });
+  const address = await app.start();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.stop());
+
+  const denied = await fetch(`${baseUrl}/v1/opportunities`);
+  assert.equal(denied.status, 401);
+
+  const accepted = await fetch(`${baseUrl}/v1/intakes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer user-a-token' },
+    body: JSON.stringify(payload({
+      platform: 'threads',
+      url: 'https://www.threads.com/@local/post/private-item',
+      title: '대학생 공모전',
+      body: '대학생 대상 공모전입니다. 마감 2026년 9월 30일까지.',
+      categoryText: 'Competition'
+    }))
+  });
+  const acceptedBody = await accepted.json();
+  const intake = await waitForTerminal(baseUrl, acceptedBody.intake_id, 'user-a-token');
+  assert.equal(intake.status, 'READY_FOR_REVIEW');
+
+  const userA = await (await fetch(`${baseUrl}/v1/opportunities`, {
+    headers: { authorization: 'Bearer user-a-token' }
+  })).json();
+  assert.equal(userA.items.length, 1);
+  assert.equal(userA.items[0].user_id, 'user-a');
+
+  const userB = await (await fetch(`${baseUrl}/v1/opportunities`, {
+    headers: { authorization: 'Bearer user-b-token' }
+  })).json();
+  assert.equal(userB.items.length, 0);
 });

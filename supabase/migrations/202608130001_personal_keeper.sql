@@ -16,6 +16,7 @@ create table if not exists public.intakes (
     'READY_FOR_REVIEW', 'NEEDS_REVIEW', 'UNSUPPORTED', 'CANCELLED', 'FAILED'
   )),
   page_evidence jsonb not null,
+  opportunity_id uuid,
   error jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -42,6 +43,7 @@ create table if not exists public.opportunities (
   status text not null check (status in ('READY_FOR_REVIEW', 'NEEDS_REVIEW', 'CONFIRMED', 'DELETED')),
   needs_review boolean not null default false,
   error_codes jsonb not null default '[]'::jsonb,
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, canonical_url)

@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validatePageEvidencePayload } from '../shared/contracts.js';
-import { InMemoryKeeperStore } from './store.js';
+import { InMemoryKeeperStore, SupabaseKeeperStore } from './store.js';
+import { SupabaseAuthService } from './auth.js';
 import { processIntake } from './workflow.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,7 +24,7 @@ function sendJson(response, status, body) {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
     'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'content-type, x-local-test-key',
+    'access-control-allow-headers': 'content-type, authorization',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS'
   });
   response.end(JSON.stringify(body));
@@ -69,13 +70,22 @@ async function serveStatic(requestPath, response) {
   return true;
 }
 
-export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', store = new InMemoryKeeperStore() } = {}) {
+function configuredSupabase() {
+  return process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
+    ? { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY }
+    : null;
+}
+
+export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', store, authService } = {}) {
+  const supabase = configuredSupabase();
+  const keeperStore = store || (supabase ? new SupabaseKeeperStore(supabase) : new InMemoryKeeperStore());
+  const auth = authService || (supabase ? new SupabaseAuthService(supabase) : null);
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', `http://${request.headers.host || `${host}:${port}`}`);
     if (request.method === 'OPTIONS') {
       response.writeHead(204, {
         'access-control-allow-origin': '*',
-        'access-control-allow-headers': 'content-type, x-local-test-key',
+        'access-control-allow-headers': 'content-type, authorization',
         'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS'
       });
       response.end();
@@ -84,6 +94,18 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
     try {
       if (request.method === 'GET' && await serveStatic(url.pathname, response)) return;
+      const session = auth
+        ? await auth.authenticate(request.headers)
+        : { userId: 'local-test-user', accessToken: null, email: null };
+      if (!session) {
+        sendJson(response, 401, { error: { code: 'AUTH_REQUIRED', message: 'KEEP:ON 계정 로그인이 필요합니다.' } });
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/v1/me') {
+        sendJson(response, 200, { user: { id: session.userId, email: session.email } });
+        return;
+      }
 
       if (request.method === 'POST' && url.pathname === '/v1/intakes') {
         const raw = await readJson(request);
@@ -92,8 +114,8 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
           sendJson(response, 422, { error: { code: 'INVALID_PAGE_EVIDENCE', message: '페이지 증거 계약을 확인하세요.', details: checked.errors } });
           return;
         }
-        const intake = store.createIntake(checked.value);
-        setImmediate(() => processIntake(store, intake.id));
+        const intake = await keeperStore.createIntake(checked.value, session.userId, session.accessToken);
+        setImmediate(() => processIntake(keeperStore, intake.id, session));
         sendJson(response, 202, {
           intake_id: intake.id,
           status: intake.status,
@@ -105,7 +127,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
       const intakeMatch = url.pathname.match(/^\/v1\/intakes\/([^/]+)$/);
       if (request.method === 'GET' && intakeMatch) {
-        const intake = store.getIntake(intakeMatch[1]);
+        const intake = await keeperStore.getIntake(intakeMatch[1], session.userId, session.accessToken);
         if (!intake) return sendJson(response, 404, { error: { code: 'INTAKE_NOT_FOUND', message: 'Intake를 찾을 수 없습니다.' } });
         sendJson(response, 200, intake);
         return;
@@ -113,20 +135,20 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
       const cancelMatch = url.pathname.match(/^\/v1\/intakes\/([^/]+)\/cancel$/);
       if (request.method === 'POST' && cancelMatch) {
-        const intake = store.markCancelled(cancelMatch[1]);
+        const intake = await keeperStore.markCancelled(cancelMatch[1], session.userId, session.accessToken);
         if (!intake) return sendJson(response, 404, { error: { code: 'INTAKE_NOT_FOUND', message: 'Intake를 찾을 수 없습니다.' } });
         sendJson(response, 200, intake);
         return;
       }
 
       if (request.method === 'GET' && url.pathname === '/v1/opportunities') {
-        sendJson(response, 200, { items: store.listOpportunities() });
+        sendJson(response, 200, { items: await keeperStore.listOpportunities(session.userId, session.accessToken) });
         return;
       }
 
       const opportunityMatch = url.pathname.match(/^\/v1\/opportunities\/([^/]+)$/);
       if (request.method === 'GET' && opportunityMatch) {
-        const opportunity = store.getOpportunity(opportunityMatch[1]);
+        const opportunity = await keeperStore.getOpportunity(opportunityMatch[1], session.userId, session.accessToken);
         if (!opportunity || opportunity.status === 'DELETED') return sendJson(response, 404, { error: { code: 'OPPORTUNITY_NOT_FOUND', message: 'Opportunity를 찾을 수 없습니다.' } });
         sendJson(response, 200, opportunity);
         return;
@@ -134,16 +156,15 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
       const confirmMatch = url.pathname.match(/^\/v1\/opportunities\/([^/]+)\/confirm$/);
       if (request.method === 'POST' && confirmMatch) {
-        const opportunity = store.getOpportunity(confirmMatch[1]);
+        const opportunity = await keeperStore.getOpportunity(confirmMatch[1], session.userId, session.accessToken);
         if (!opportunity || opportunity.status === 'DELETED') return sendJson(response, 404, { error: { code: 'OPPORTUNITY_NOT_FOUND', message: 'Opportunity를 찾을 수 없습니다.' } });
-        opportunity.status = 'CONFIRMED';
-        opportunity.updated_at = new Date().toISOString();
-        sendJson(response, 200, opportunity);
+        const confirmed = await keeperStore.updateOpportunity(opportunity.id, { status: 'CONFIRMED' }, session.userId, session.accessToken);
+        sendJson(response, 200, confirmed);
         return;
       }
 
       if (request.method === 'DELETE' && opportunityMatch) {
-        const deleted = store.deleteOpportunity(opportunityMatch[1]);
+        const deleted = await keeperStore.deleteOpportunity(opportunityMatch[1], session.userId, session.accessToken);
         if (!deleted) return sendJson(response, 404, { error: { code: 'OPPORTUNITY_NOT_FOUND', message: 'Opportunity를 찾을 수 없습니다.' } });
         response.writeHead(204, { 'access-control-allow-origin': '*' });
         response.end();
@@ -159,7 +180,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
   return {
     server,
-    store,
+    store: keeperStore,
     start() {
       return new Promise((resolve) => server.listen(port, host, () => resolve(server.address())));
     },

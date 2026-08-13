@@ -45,6 +45,10 @@ Supabase Dashboard → SQL Editor에서 아래 파일 내용을 실행한다.
 
 ../../supabase/migrations/202608130001_personal_keeper.sql
 
+이미 첫 파일을 실행했다면 이어서 아래 파일도 실행한다.
+
+../../supabase/migrations/202608130002_add_intake_opportunity_fields.sql
+
 이 마이그레이션은 profiles, intakes, opportunities 테이블과 사용자별 Row Level
 Security 정책을 만든다. 로그인한 사용자의 auth.uid()가 자신의 user_id와 같을 때만
 조회·삽입·수정·삭제할 수 있다.
