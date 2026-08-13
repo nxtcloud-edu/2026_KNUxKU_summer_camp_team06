@@ -59,6 +59,7 @@ test('Keep payload가 Agent를 거쳐 웹 목록에 나타난다', async (t) => 
   assert.equal(list.items[0].platform, 'instagram');
   assert.equal(list.items[0].category, 'Competition');
   assert.equal(list.items[0].deadline, '2026-09-30');
+  assert.equal(list.items[0].normalization_method, 'rules');
   assert.equal(list.items[0].intake_id, acceptedBody.intake_id);
 });
 

@@ -1,10 +1,10 @@
 import { createPlatformAgent } from './agents/platform-agents.js';
-import { NormalizationAgent } from './agents/normalization-agent.js';
+import { GeminiNormalizationAgent } from './agents/normalization-agent.js';
 import { ValidationService } from './validation.js';
 
 const MAX_ACTIVE_INTAKES_PER_USER = 2;
 
-export function processIntake(store, intakeId) {
+export async function processIntake(store, intakeId) {
   const intake = store.getIntake(intakeId);
   if (!intake || store.isCancelled(intakeId)) return;
   if (store.activeCount(intake.user_id) >= MAX_ACTIVE_INTAKES_PER_USER) {
@@ -26,7 +26,7 @@ export function processIntake(store, intakeId) {
     const extracted = agent.extract(intake.page_evidence);
     if (store.isCancelled(intakeId)) return;
     store.updateIntake(intakeId, { status: 'NORMALIZING' });
-    const normalized = new NormalizationAgent().normalize(extracted);
+    const normalized = await new GeminiNormalizationAgent().normalize(extracted);
     if (store.isCancelled(intakeId)) return;
     store.updateIntake(intakeId, { status: 'VALIDATING' });
     const validation = new ValidationService().validate(normalized);
@@ -46,6 +46,7 @@ export function processIntake(store, intakeId) {
       links: normalized.links,
       evidence: normalized.evidence,
       confidence: normalized.confidence,
+      normalization_method: normalized.normalization_method,
       status: validation.ok ? 'READY_FOR_REVIEW' : 'NEEDS_REVIEW',
       needs_review: !validation.ok,
       error_codes: validation.errors
