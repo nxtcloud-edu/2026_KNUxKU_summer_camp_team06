@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Bell, Bookmark, CalendarDays, CheckCircle2, Compass, MessageCircle, X } from 'lucide-react';
+import { Bell, Bookmark, CalendarDays, CheckCircle2, Compass, LogIn, LogOut, MessageCircle, X } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 
 import { IntakeProgress } from './storage/IntakeProgress';
 import { useIntakeStatus } from '../lib/useIntakeStatus';
 import { useNotifications } from '../lib/notifications';
+import { useAuth } from '../lib/auth';
 
 const navigation = [
   { to: '/', label: '오늘', icon: Compass },
@@ -39,6 +40,7 @@ export function AppShell() {
     setSearchParams(next, { replace: true });
   };
   const { notices, unreadCount, isRead, markRead, markAllRead } = useNotifications();
+  const { ready, session, signIn, signOut } = useAuth();
   const rootPath = '/' + location.pathname.split('/').filter(Boolean)[0];
   const pageTitle = titles[location.pathname] || titles[rootPath] || 'KEEP:ON';
 
@@ -61,7 +63,14 @@ export function AppShell() {
               <Bell size={19} />
               {unreadCount > 0 && <span className="unread-dot" />}
             </button>
-            <NavLink to="/profile" className="top-avatar" aria-label="내 정보">수</NavLink>
+            {session ? (
+              <>
+                <NavLink to="/profile" className="top-avatar" aria-label="내 정보">{session.user.email?.slice(0, 1).toUpperCase() || '나'}</NavLink>
+                <button className="icon-button" type="button" aria-label="로그아웃" onClick={() => void signOut()}><LogOut size={17} /></button>
+              </>
+            ) : (
+              <button className="login-button" type="button" disabled={!ready} onClick={() => void signIn()}><LogIn size={16} />Google 로그인</button>
+            )}
           </div>
           <div className={`notification-popover ${notificationsOpen ? 'is-open' : ''}`}>
             <div className="popover-head">

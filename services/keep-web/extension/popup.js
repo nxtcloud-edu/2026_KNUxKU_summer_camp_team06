@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:4174';
+const API_BASE = 'https://keep-on-web-4wvbvyiw4q-du.a.run.app';
 const keepButton = document.querySelector('#keep');
 const statusOutput = document.querySelector('#status');
 const connectButton = document.querySelector('#connect');

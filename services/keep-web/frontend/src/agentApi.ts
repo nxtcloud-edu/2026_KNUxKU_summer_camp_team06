@@ -1,5 +1,6 @@
 import type { DecisionResult } from './types/decision';
 import type { Intake } from './types/intake';
+import { authorizedFetch } from './lib/auth';
 
 export type ProfilePayload = {
   birth_date: string;
@@ -24,14 +25,14 @@ export function saveProfile(profile: ProfilePayload) {
 }
 
 export async function getIntake(intakeId: string): Promise<Intake> {
-  const response = await fetch(`/v1/intakes/${encodeURIComponent(intakeId)}`);
+  const response = await authorizedFetch(`/v1/intakes/${encodeURIComponent(intakeId)}`);
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message || body.error || '처리 상태를 확인하지 못했어요.');
   return body as Intake;
 }
 
 export async function startExecution(opportunityId: string, likedOpportunityIds: string[]) {
-  const response = await fetch('/v1/agent/execution', {
+  const response = await authorizedFetch('/v1/agent/execution', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ profile: loadProfile(), liked_opportunity_ids: likedOpportunityIds, opportunity_id: opportunityId }),
   });
@@ -41,7 +42,7 @@ export async function startExecution(opportunityId: string, likedOpportunityIds:
 }
 
 export async function evaluateOpportunity(opportunityId: string): Promise<DecisionResult> {
-  const response = await fetch('/v1/agent/evaluate', {
+  const response = await authorizedFetch('/v1/agent/evaluate', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ profile: loadProfile(), opportunity_id: opportunityId }),
   });
