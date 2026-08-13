@@ -32,7 +32,6 @@ import { OrderTracking } from './components/ui/order-tracking';
 import {
   allPlans,
   formatPlanDate,
-  parseDeadline,
   planFor,
   setTaskDone,
   usePlanOverrides,
@@ -480,7 +479,6 @@ function PlanDetail({ item }: { item: Opportunity }) {
   const tasks = useMemo(() => planFor(item, overrides), [item, overrides]);
   const done = tasks.filter((task) => task.done).length;
   const progress = tasks.length ? done / tasks.length : 0;
-  const deadlineLabel = parseDeadline(item.deadline);
 
   return (
     <div className="page plan-detail">
@@ -489,12 +487,6 @@ function PlanDetail({ item }: { item: Opportunity }) {
         <div>
           <span className="section-label">{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
           <h2>{item.title}</h2>
-          <p>
-            {deadlineLabel
-              ? `마감 ${deadlineLabel.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}에서 거꾸로 계산한 일정이에요.`
-              : '마감일 정보 없이 오늘부터 시작하는 일정이에요.'}{' '}
-            <Link to="/calendar" className="inline-link">캘린더에서 보기</Link>
-          </p>
         </div>
         <div className={`progress-ring accent-${item.accent}`} style={{ '--progress': `${progress * 360}deg` } as React.CSSProperties}>
           <div><strong>{Math.round(progress * 100)}%</strong><span>완료</span></div>
@@ -519,7 +511,7 @@ function PlanDetail({ item }: { item: Opportunity }) {
           </div>
         </section>
       )}
-      <section className="generated-plan" aria-label={`${item.title} 실행 계획`}>
+      {decision !== 'planning' && <section className="generated-plan" aria-label={`${item.title} 실행 계획`}>
         <div className="generated-plan-head">
           <div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div>
           <span>{done}/{tasks.length} 완료</span>
@@ -543,7 +535,7 @@ function PlanDetail({ item }: { item: Opportunity }) {
             </button>
           ))}
         </div>
-      </section>
+      </section>}
       {tasks.length > 0 && done === tasks.length && (
         <div className="completion-toast">
           <CheckCircle2 size={19} />

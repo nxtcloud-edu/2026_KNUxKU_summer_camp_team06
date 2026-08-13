@@ -123,7 +123,9 @@ def run(request: dict) -> dict:
             decision=decision,
             now=datetime.now(),
         )
-        result = ExecutionAgent(store=ExecutionStore(autosave=False), provider="local").start(context)
+        # Cloud Run의 서버 전용 GEMINI_API_KEY로 Planning Agent를 실행한다.
+        # 키/응답 오류 때만 ExecutionAgent 내부의 안전한 템플릿 폴백이 사용된다.
+        result = ExecutionAgent(store=ExecutionStore(autosave=False), provider="gemini").start(context)
         return {
             "decision": decision.model_dump(mode="json"),
             "goal": result.goal.model_dump(mode="json"),
