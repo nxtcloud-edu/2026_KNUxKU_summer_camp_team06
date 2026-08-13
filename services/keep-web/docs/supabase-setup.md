@@ -49,9 +49,14 @@ Supabase Dashboard → SQL Editor에서 아래 파일 내용을 실행한다.
 
 ../../supabase/migrations/202608130002_add_intake_opportunity_fields.sql
 
-이 마이그레이션은 profiles, intakes, opportunities 테이블과 사용자별 Row Level
-Security 정책을 만든다. 로그인한 사용자의 auth.uid()가 자신의 user_id와 같을 때만
-조회·삽입·수정·삭제할 수 있다.
+직접 링크·PDF·사진·텍스트 입력을 지원하려면 마지막으로 아래 파일도 실행한다.
+
+../../supabase/migrations/202608130003_add_multi_source_intakes.sql
+
+마이그레이션은 profiles, intakes, opportunities, intake_files 테이블과 사용자별 Row
+Level Security 정책을 만든다. 로그인한 사용자의 auth.uid()가 자신의 user_id와 같을 때만
+조회·삽입·수정·삭제할 수 있다. PDF와 사진 원본은 private keeper-uploads Storage bucket에
+두며, 파일 경로의 첫 폴더가 user_id인 경우에만 접근한다.
 
 ## 4. 적용 확인
 
