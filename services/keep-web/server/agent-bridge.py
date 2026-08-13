@@ -85,22 +85,22 @@ def run(request: dict) -> dict:
         )
         return {"items": [item.model_dump(mode="json") for item in items]}
 
-    opportunity_id = request["opportunity_id"]
-    entry = agent_service._by_id.get(opportunity_id)
-    if entry is None:
-        raise ValueError("Selected opportunity ID is not available to the decision agent.")
-
-    if command != "execution":
+    if command in {"recommend", "evaluate"}:
         profile = ProfileSubmission.model_validate(request["profile"])
         likes = request.get("liked_opportunity_ids", [])
         feed = agent_service.recommend(profile, likes)
         if command == "recommend":
             return feed.model_dump(mode="json")
+        opportunity_id = request["opportunity_id"]
+        entry = agent_service._by_id.get(opportunity_id)
+        if entry is None:
+            raise ValueError("Selected opportunity ID is not available to the decision agent.")
         decision_result = evaluate_opportunity(profile.to_decision_profile(), entry.input)
         if command == "evaluate":
             return decision_result.model_dump(mode="json")
 
     if command == "execution":
+        opportunity_id = request["opportunity_id"]
         # Planning은 자격 판정이 아니라 사용자가 저장한 정보를 실행 순서로 바꾸는 기능이다.
         # 캘린더 반영은 프론트의 명시적 승인 이후에만 이뤄진다.
         decision = EligibilityDecision(

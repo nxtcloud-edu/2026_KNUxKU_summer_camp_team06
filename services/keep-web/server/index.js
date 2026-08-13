@@ -8,6 +8,7 @@ import { validatePageEvidencePayload } from '../shared/contracts.js';
 import { InMemoryKeeperStore, SupabaseKeeperStore } from './store.js';
 import { SupabaseAuthService } from './auth.js';
 import { processIntake } from './workflow.js';
+import { GeminiConversationAgent } from './agents/chat-agent.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND_DIST = path.join(ROOT, 'frontend', 'dist');
@@ -179,6 +180,26 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/execution') {
         sendJson(response, 200, await runAgent('execution', await readJson(request), session, keeperStore));
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/v1/agent/chat') {
+        const payload = await readJson(request);
+        const opportunities = await keeperStore.listOpportunities(session.userId, session.accessToken);
+        const selected = opportunities.find((item) => item.id === payload.opportunity_id) || null;
+        let recommendation = null;
+        if (Array.isArray(payload.liked_opportunity_ids) && payload.liked_opportunity_ids.length) {
+          try {
+            recommendation = await runAgent('recommend', {
+              profile: payload.profile || {}, liked_opportunity_ids: payload.liked_opportunity_ids,
+            }, session, keeperStore);
+          } catch { recommendation = null; }
+        }
+        const answer = await new GeminiConversationAgent().answer({
+          question: payload.question, profile: payload.profile, opportunities,
+          selectedOpportunity: selected, recommendation,
+        });
+        sendJson(response, 200, { answer, source: 'gemini' });
         return;
       }
 

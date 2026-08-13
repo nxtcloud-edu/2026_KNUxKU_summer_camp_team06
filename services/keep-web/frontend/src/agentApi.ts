@@ -82,3 +82,29 @@ export async function evaluateOpportunity(opportunityId: string): Promise<Decisi
   if (!response.ok) throw new Error(body.error?.message || body.error || '조건을 확인하지 못했어요.');
   return body;
 }
+
+export type RecommendationFeed = {
+  liked_opportunity_ids: string[];
+  recommendations: Array<{ ranking: { opportunity_id: string; title: string; score: number; recommendation: string; reasons: string[]; liked: boolean } }>;
+  follow_up_questions: string[];
+};
+
+export async function getRecommendations(likedOpportunityIds: string[]): Promise<RecommendationFeed> {
+  const response = await authorizedFetch('/v1/agent/recommendations', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ profile: loadProfile(), liked_opportunity_ids: likedOpportunityIds }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || body.error || 'AI 추천을 만들지 못했습니다.');
+  return body;
+}
+
+export async function askConversation(question: string, opportunityId: string | null, likedOpportunityIds: string[]) {
+  const response = await authorizedFetch('/v1/agent/chat', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ question, opportunity_id: opportunityId, liked_opportunity_ids: likedOpportunityIds, profile: loadProfile() }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || body.error || 'AI 대화 응답을 받지 못했습니다.');
+  return String(body.answer || '답변을 만들지 못했습니다.');
+}

@@ -9,6 +9,7 @@ import {
   Check,
   Clock3,
   CheckCircle2,
+  Heart,
   ExternalLink,
   Filter,
   MessageCircleQuestion,
@@ -27,7 +28,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { AppShell } from './components/AppShell';
 import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
-import { createSourceIntake, getIntake, getMyOpportunities, startExecution } from './agentApi';
+import { askConversation, createSourceIntake, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
 import { useAuth } from './lib/auth';
 import { OrderTracking } from './components/ui/order-tracking';
 import { AgentProgressCard } from './components/ui/agent-progress-card';
@@ -51,13 +52,17 @@ import { decisionOf } from './lib/decisionView';
 import { SavedEmptyState, type SavedEmptyVariant } from './components/storage/SavedEmptyState';
 import { ProfileImpact } from './components/profile/ProfileImpact';
 import { ProfileOnboarding } from './components/profile/ProfileOnboarding';
-import { answerFor, GENERAL_SUGGESTIONS, OPPORTUNITY_SUGGESTIONS } from './lib/chatContext';
+import { GENERAL_SUGGESTIONS, OPPORTUNITY_SUGGESTIONS } from './lib/chatContext';
 import { isOnboardingDone, markOnboardingDone, missingRequired, patchProfile, useStoredProfile } from './lib/profileStore';
 import { matchesAnyField } from './lib/koreanSearch';
 import { useRecentQueries } from './lib/recentQueries';
+import { toggleLikedOpportunity, useLikedOpportunities } from './lib/likedStore';
 
 function HomePage({ loading }: { loading: boolean }) {
   const decisions = useDecisions();
+  const likedIds = useLikedOpportunities();
+  const [recommendations, setRecommendations] = useState<RecommendationFeed | null>(null);
+  const [recommendationState, setRecommendationState] = useState<'idle' | 'loading' | 'error'>('idle');
   // 보관한 기회는 추천에서 빠져야 목록이 정리되는 느낌이 생긴다.
   const active = useMemo(
     () => opportunities.filter((item) => decisionOf(decisions, item) !== 'archived'),
@@ -92,6 +97,30 @@ function HomePage({ loading }: { loading: boolean }) {
       <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
       <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay !== null && item.dDay <= 11)} />
       </>}
+      <button
+        type="button"
+        className="ai-recommend-button"
+        onClick={async () => {
+          if (!likedIds.length) { setRecommendationState('error'); return; }
+          setRecommendationState('loading');
+          try { setRecommendations(await getRecommendations(likedIds)); setRecommendationState('idle'); }
+          catch { setRecommendationState('error'); }
+        }}
+      >
+        <img src="/ai-recommendation.png" alt="" />
+        <span><b>AI 추천</b><small>{likedIds.length ? `좋아요 ${likedIds.length}개 기준` : '하트를 눌러 시작'}</small></span>
+      </button>
+      {(recommendations || recommendationState === 'error') && (
+        <section className="ai-recommend-panel">
+          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 정보와 내 프로필을 비교했어요</h3></div>
+          {recommendations?.recommendations.map(({ ranking }) => {
+            const item = opportunities.find((candidate) => candidate.id === ranking.opportunity_id);
+            return item ? <Link to={`/saved/${item.id}`} key={item.id} className="ai-recommend-row"><strong>{ranking.score}점</strong><span><b>{item.title}</b><small>{ranking.reasons.slice(0, 2).join(' · ')}</small></span></Link> : null;
+          })}
+          {recommendations?.follow_up_questions.map((question) => <p key={question} className="ai-recommend-note">{question}</p>)}
+          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천을 만들지 못했어요. 프로필을 채운 뒤 다시 시도해 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
+        </section>
+      )}
     </div>
   );
 }
@@ -113,8 +142,10 @@ function DashboardRail({ title, subtitle, items }: { title: string; subtitle: st
 
 function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: number }) {
   const nextTask = item.tasks.find((task) => !task.done)?.title || '모든 단계 완료';
+  const liked = useLikedOpportunities().includes(item.id);
   return (
     <Link to={`/saved/${item.id}`} className={`dashboard-opportunity-card accent-${item.accent}`}>
+      <button className={`like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={(event) => { event.preventDefault(); toggleLikedOpportunity(item.id); }}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button>
       <span className="opportunity-rank" aria-hidden="true">{rank}</span>
       <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true">
         {item.thumbnailUrl && item.thumbnailKind === 'pdf'
@@ -315,8 +346,10 @@ function UploadProgress({ file }: { file: { name: string; status: string } }) {
 }
 
 function OpportunityRow({ item, decision }: { item: Opportunity; decision: DecisionState }) {
+  const liked = useLikedOpportunities().includes(item.id);
   return (
     <Link to={`/saved/${item.id}`} className={`opportunity-row accent-${item.accent}`}>
+      <button className={`like-button row-like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={(event) => { event.preventDefault(); toggleLikedOpportunity(item.id); }}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button>
       <div className="row-main">
         <div className="row-meta">
           <span>{item.category}</span>
@@ -341,11 +374,12 @@ function OpportunityDetailPage() {
 }
 
 function OpportunityDetail({ item }: { item: Opportunity }) {
+  const liked = useLikedOpportunities().includes(item.id);
   return (
     <div className="page detail-page">
       <Link to="/saved" className="back-link"><ArrowLeft size={17} />저장 목록</Link>
       <section className={`detail-hero accent-${item.accent}`}>
-        <div className="detail-top"><CategoryTag category={item.category} /><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div>
+        <div className="detail-top"><CategoryTag category={item.category} /><div><button className={`like-button detail-like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={() => toggleLikedOpportunity(item.id)}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div></div>
         {item.organization && <p className="organization">{item.organization}</p>}
         <h2>{item.title}</h2>
         <div className="detail-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
@@ -649,27 +683,28 @@ function PlanDetail({ item }: { item: Opportunity }) {
 
 function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const overrides = usePlanOverrides();
   const opportunityId = searchParams.get('opportunity');
   const item = opportunities.find((opportunity) => opportunity.id === opportunityId);
-  const tasks = useMemo(() => (item ? planFor(item, overrides) : []), [item, overrides]);
   const suggestions = item ? OPPORTUNITY_SUGGESTIONS : GENERAL_SUGGESTIONS;
+  const likedIds = useLikedOpportunities();
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ id: number; role: 'assistant' | 'user'; text: string }>>([]);
   const askedRef = useRef<string | null>(null);
 
-  const send = useCallback((text: string) => {
+  const send = useCallback(async (text: string) => {
     const value = text.trim();
     if (!value) return;
-    const answer = answerFor(value, { item, tasks, planOverrides: overrides });
-    setMessages((current) => [
-      ...current,
-      { id: Date.now(), role: 'user', text: value },
-      { id: Date.now() + 1, role: 'assistant', text: answer },
-    ]);
+    const id = Date.now();
+    setMessages((current) => [...current, { id, role: 'user', text: value }, { id: id + 1, role: 'assistant', text: '답변을 정리하고 있어요…' }]);
     setInput('');
-  }, [item, tasks, overrides]);
+    try {
+      const answer = await askConversation(value, item?.id || null, likedIds);
+      setMessages((current) => current.map((message) => message.id === id + 1 ? { ...message, text: answer } : message));
+    } catch (error) {
+      setMessages((current) => current.map((message) => message.id === id + 1 ? { ...message, text: error instanceof Error ? error.message : 'AI 대화 응답을 받지 못했습니다.' } : message));
+    }
+  }, [item?.id, likedIds]);
 
   // 카드에서 '이거 물어보기'로 들어온 질문은 한 번만 자동 전송한다.
   useEffect(() => {
@@ -678,7 +713,7 @@ function ChatPage() {
     const key = `${opportunityId ?? ''}:${question}`;
     if (askedRef.current === key) return;
     askedRef.current = key;
-    send(question);
+    void send(question);
     const next = new URLSearchParams(searchParams);
     next.delete('q');
     setSearchParams(next, { replace: true });
@@ -734,13 +769,13 @@ function ChatPage() {
 
         <div className="suggestions">
           {suggestions.map((suggestion) => (
-            <button type="button" key={suggestion} onClick={() => send(suggestion)}>
+            <button type="button" key={suggestion} onClick={() => void send(suggestion)}>
               {suggestion}<ArrowUpRight size={14} />
             </button>
           ))}
         </div>
 
-        <form className="chat-input" onSubmit={(event) => { event.preventDefault(); send(input); }}>
+        <form className="chat-input" onSubmit={(event) => { event.preventDefault(); void send(input); }}>
           <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="예: 이번 주에 뭘 먼저 해야 해?" />
           <button type="submit" aria-label="메시지 보내기"><Send size={18} /></button>
         </form>

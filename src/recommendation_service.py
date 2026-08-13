@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,7 +25,7 @@ from src.ranking_agent import DashboardItem, OpportunitySignals, build_dashboard
 class ProfileSubmission(BaseModel):
     """C-owned profile form payload. A full DOB is mandatory for age checks."""
 
-    birth_date: date
+    birth_date: Optional[date] = None
     region: str | None = None
     status: str | None = None
     interests: list[str] = Field(default_factory=list)
@@ -37,7 +37,9 @@ class ProfileSubmission(BaseModel):
 
     @field_validator("birth_date")
     @classmethod
-    def birth_date_must_be_plausible(cls, value: date) -> date:
+    def birth_date_must_be_plausible(cls, value: Optional[date]) -> Optional[date]:
+        if value is None:
+            return value
         if value > date.today() or value.year < date.today().year - 120:
             raise ValueError("birth_date must be a plausible past date")
         return value

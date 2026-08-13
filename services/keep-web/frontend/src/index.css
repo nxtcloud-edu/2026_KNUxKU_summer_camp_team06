@@ -550,6 +550,19 @@ img { max-width: 100%; display: block; }
 .home-data-state strong { display: block; color: var(--ink); font-size: var(--text-md); }
 .home-data-state p { margin: 5px 0 0; font-size: var(--text-sm); }
 .home-data-state a { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-color); font-size: var(--text-sm); font-weight: 750; }
+.ai-recommend-button { position: fixed; z-index: 35; right: 28px; bottom: 28px; display: flex; align-items: center; gap: 9px; padding: 8px 16px 8px 8px; border: 0; border-radius: var(--r-pill); background: var(--accent-color); color: white; box-shadow: var(--shadow-lg); cursor: pointer; }
+.ai-recommend-button img { width: 40px; height: 40px; object-fit: contain; }
+.ai-recommend-button span { display: grid; text-align: left; }
+.ai-recommend-button b { font-size: var(--text-sm); }
+.ai-recommend-button small { margin-top: 2px; color: rgba(255,255,255,.72); font-size: 10px; }
+.ai-recommend-panel { margin: 32px 0 70px; padding: 22px; border: 1px solid #d8e8ef; border-radius: var(--r-xl); background: #f5fbfd; }
+.ai-recommend-panel h3 { margin: 5px 0 16px; color: var(--ink); font-size: var(--text-lg); }
+.ai-recommend-row { display: flex; align-items: center; gap: 13px; padding: 12px 0; border-top: 1px solid #dcebf0; }
+.ai-recommend-row > strong { display: grid; place-items: center; flex: 0 0 46px; height: 34px; border-radius: var(--r-pill); background: #dff3eb; color: #176b52; font-size: var(--text-sm); }
+.ai-recommend-row span { min-width: 0; display: grid; gap: 4px; }
+.ai-recommend-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); }
+.ai-recommend-row small, .ai-recommend-note { color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-snug); }
+.ai-recommend-note { margin: 14px 0 0; }
 
 .opportunity-rail {
   display: flex;
@@ -583,6 +596,10 @@ img { max-width: 100%; display: block; }
 .dashboard-opportunity-card:nth-child(4) { animation-delay: 180ms; }
 .dashboard-opportunity-card:hover { z-index: 2; box-shadow: var(--shadow-lg); transform: translateY(-8px) rotate(-.5deg); }
 .dashboard-opportunity-card:active { transform: translateY(-2px) scale(.99); }
+.like-button { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 50%; background: var(--white); color: var(--ink-3); cursor: pointer; transition: transform var(--dur-2) var(--ease-spring), color var(--dur-2) ease, border-color var(--dur-2) ease; }
+.like-button:hover { transform: scale(1.08); border-color: #ef9daa; color: #e15b71; }
+.like-button.is-liked { border-color: #ef8d9e; background: #fff0f3; color: #df4f68; }
+.dashboard-opportunity-card > .like-button { position: absolute; z-index: 3; top: 20px; right: 20px; box-shadow: var(--shadow-sm); }
 
 .opportunity-rank {
   position: absolute;
@@ -993,6 +1010,7 @@ img { max-width: 100%; display: block; }
 .row-deadline span { display: block; margin-top: 7px; color: var(--ink-3); font-size: var(--text-2xs); }
 .row-arrow { color: var(--ink-3); transition: transform var(--dur-2) var(--ease-out), color var(--dur-2) ease; }
 .opportunity-row:hover .row-arrow { transform: translateX(4px); color: var(--accent-color); }
+.row-like-button { position: absolute; z-index: 2; top: 14px; right: 14px; width: 30px; height: 30px; }
 
 .row-decision {
   padding: 5px 10px;
@@ -1040,6 +1058,8 @@ img { max-width: 100%; display: block; }
   rotate: 18deg;
 }
 .detail-top { display: flex; align-items: center; justify-content: space-between; }
+.detail-top > div { display: flex; align-items: center; gap: 8px; }
+.detail-like-button { width: 32px !important; height: 32px !important; }
 .detail-top > span {
   padding: 8px 14px;
   border-radius: var(--r-pill);
