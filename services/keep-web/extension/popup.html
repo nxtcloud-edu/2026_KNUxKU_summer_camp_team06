@@ -2,23 +2,60 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>Keep</title>
+    <title>KEEP:ON</title>
     <style>
-      body { width: 260px; margin: 16px; font-family: system-ui, sans-serif; }
-      button { box-sizing: border-box; width: 100%; padding: 8px; }
-      .secondary { margin-top: 8px; }
-      #redirect { margin: 8px 0 0; color: #555; font-size: 11px; overflow-wrap: anywhere; }
-      #status { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+      :root { color: #20243b; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; }
+      * { box-sizing: border-box; }
+      body { width: 360px; margin: 0; background: #f7f8fc; }
+      button { font: inherit; cursor: pointer; }
+      .popup { padding: 18px; }
+      .top { display: flex; align-items: center; gap: 10px; }
+      .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #2e8aca; color: white; font-size: 14px; font-weight: 800; }
+      .brand { flex: 1; margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+      .connection { display: inline-flex; align-items: center; gap: 5px; color: #687088; font-size: 11px; font-weight: 700; }
+      .connection::before { width: 7px; height: 7px; border-radius: 50%; background: #a6adba; content: ""; }
+      .connection.is-connected::before { background: #33a77d; }
+      .bookmark { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 13px; margin: 20px 0 16px; padding: 13px; border: 1px solid #e2e5ee; border-radius: 16px; background: white; box-shadow: 0 7px 20px rgba(31, 42, 73, .05); }
+      .site-mark { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; background: #eaf5fc; color: #2e8aca; font-size: 12px; font-weight: 850; }
+      .bookmark-copy { min-width: 0; }
+      #page-title { display: -webkit-box; overflow: hidden; margin: 2px 0 6px; color: #20243b; font-size: 14px; font-weight: 750; line-height: 1.32; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+      #page-domain { overflow: hidden; color: #7c8499; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .action { width: 100%; min-height: 44px; border: 0; border-radius: 11px; background: #2e8aca; color: white; font-size: 14px; font-weight: 800; box-shadow: 0 7px 14px rgba(46, 138, 202, .22); }
+      .action:hover { background: #2079b5; }
+      .action:disabled { opacity: .65; cursor: wait; }
+      .sub-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
+      .quiet { min-height: 36px; padding: 0 12px; border: 1px solid #dfe3ed; border-radius: 9px; background: white; color: #596176; font-size: 12px; font-weight: 700; }
+      .quiet:hover { border-color: #9ecce8; color: #2079b5; }
+      #disconnect { padding-inline: 10px; color: #8b5360; }
+      #status { min-height: 18px; margin: 13px 3px 0; color: #697187; font-size: 11px; line-height: 1.45; white-space: pre-wrap; }
+      #connect { margin-top: 10px; background: #20243b; box-shadow: none; }
+      #connect:hover { background: #343a58; }
     </style>
   </head>
   <body>
-    <p id="version">KEEP:ON Extension v0.1.4</p>
-    <button id="connect" class="secondary" type="button">Google 계정 연결</button>
-    <button id="disconnect" class="secondary" type="button" hidden>계정 연결 해제</button>
-    <p id="redirect"></p>
-    <button id="keep" type="button">현재 페이지 Keep</button>
-    <button id="dashboard" class="secondary" type="button">내 정리함 열기</button>
-    <div id="status">대기 중</div>
+    <main class="popup">
+      <header class="top">
+        <span class="brand-mark">K</span>
+        <p class="brand">새로운 Keep</p>
+        <span id="connection" class="connection">연결 전</span>
+      </header>
+
+      <section class="bookmark" aria-label="현재 페이지">
+        <span id="site-mark" class="site-mark">WEB</span>
+        <div class="bookmark-copy">
+          <strong id="page-title">현재 페이지를 확인하고 있어요</strong>
+          <span id="page-domain">주소를 불러오는 중이에요</span>
+        </div>
+      </section>
+
+      <button id="keep" class="action" type="button">이 페이지 Keep</button>
+      <button id="connect" class="action" type="button">Google 계정 연결</button>
+      <div class="sub-actions">
+        <button id="dashboard" class="quiet" type="button">내 정리함 열기</button>
+        <button id="disconnect" class="quiet" type="button" hidden>연결 해제</button>
+      </div>
+      <div id="status" role="status" aria-live="polite">페이지를 확인했어요.</div>
+    </main>
     <script src="popup.js"></script>
   </body>
 </html>

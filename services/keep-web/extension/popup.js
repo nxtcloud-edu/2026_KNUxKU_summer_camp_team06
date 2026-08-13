@@ -4,7 +4,10 @@ const dashboardButton = document.querySelector('#dashboard');
 const statusOutput = document.querySelector('#status');
 const connectButton = document.querySelector('#connect');
 const disconnectButton = document.querySelector('#disconnect');
-const redirectOutput = document.querySelector('#redirect');
+const connectionOutput = document.querySelector('#connection');
+const pageTitleOutput = document.querySelector('#page-title');
+const pageDomainOutput = document.querySelector('#page-domain');
+const siteMarkOutput = document.querySelector('#site-mark');
 
 let accessToken = null;
 let refreshToken = null;
@@ -27,6 +30,26 @@ async function readJsonResponse(response) {
 function updateConnectionUi() {
   connectButton.hidden = Boolean(accessToken);
   disconnectButton.hidden = !accessToken;
+  connectionOutput.textContent = accessToken ? '계정 연결됨' : '연결 전';
+  connectionOutput.classList.toggle('is-connected', Boolean(accessToken));
+}
+
+async function loadPagePreview() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  pageTitleOutput.textContent = tab.title || '현재 페이지';
+  try {
+    const url = new URL(tab.url || '');
+    pageDomainOutput.textContent = url.hostname.replace(/^www\./, '');
+    const platform = url.hostname.includes('instagram') ? 'IG'
+      : url.hostname.includes('threads') ? 'TH'
+        : url.hostname.includes('youtube') ? 'YT'
+          : url.hostname === 'x.com' ? 'X'
+            : 'WEB';
+    siteMarkOutput.textContent = platform;
+  } catch {
+    pageDomainOutput.textContent = '현재 탭';
+  }
 }
 
 async function loadSettings() {
@@ -39,7 +62,6 @@ async function loadSettings() {
     await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
     setStatus('연결 정보를 업데이트하려면 Google 계정을 한 번 다시 연결해 주세요.');
   }
-  redirectOutput.textContent = `Supabase Redirect URL: ${chrome.identity.getRedirectURL('auth/callback')}`;
   updateConnectionUi();
 }
 
@@ -97,7 +119,7 @@ async function connectAccount() {
     accessToken = tokens.get('access_token');
     refreshToken = tokens.get('refresh_token');
     expiresAt = Number(tokens.get('expires_at') || 0);
-    if (!accessToken || !refreshToken) throw new Error('로그인 토큰을 받지 못했습니다. Supabase Redirect URL 설정을 확인해 주세요.');
+    if (!accessToken || !refreshToken) throw new Error('로그인 토큰을 받지 못했습니다. 확장프로그램 로그인 설정을 확인해 주세요.');
     await chrome.storage.local.set({ accessToken, refreshToken, expiresAt });
     updateConnectionUi();
     setStatus('계정이 연결되었습니다. 이제 Keep할 수 있습니다.');
@@ -441,4 +463,4 @@ disconnectButton.addEventListener('click', async () => {
   updateConnectionUi();
   setStatus('계정 연결을 해제했습니다.');
 });
-loadSettings().catch((error) => setStatus(`설정 초기화 실패\n${error.message}`));
+Promise.all([loadSettings(), loadPagePreview()]).catch((error) => setStatus(`초기화 실패\n${error.message}`));
