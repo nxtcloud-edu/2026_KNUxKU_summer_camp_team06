@@ -126,12 +126,15 @@ def run(request: dict) -> dict:
         # Cloud Run의 서버 전용 GEMINI_API_KEY로 Planning Agent를 실행한다.
         # 키/응답 오류 때만 ExecutionAgent 내부의 안전한 템플릿 폴백이 사용된다.
         result = ExecutionAgent(store=ExecutionStore(autosave=False), provider="gemini").start(context)
+        if result.goal.meta.get("task_source") != "gemini":
+            raise ValueError("Gemini Planning Agent가 계획을 만들지 못했습니다. 템플릿 계획은 저장하지 않았습니다.")
         return {
             "decision": decision.model_dump(mode="json"),
             "goal": result.goal.model_dump(mode="json"),
             "tasks": [task.model_dump(mode="json") for task in result.tasks],
             "events": [event.model_dump(mode="json") for event in result.events],
             "reminders": [reminder.model_dump(mode="json") for reminder in result.reminders],
+            "planning_source": result.goal.meta.get("task_source"),
         }
     raise ValueError("Unsupported agent command.")
 

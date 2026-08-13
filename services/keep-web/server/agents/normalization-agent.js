@@ -127,18 +127,23 @@ export class GeminiNormalizationAgent extends NormalizationAgent {
     apiKey = process.env.GEMINI_API_KEY,
     model = process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     fetchImpl = globalThis.fetch,
-    timeoutMs = 12000
+    timeoutMs = 12000,
+    requireGemini = process.env.REQUIRE_GEMINI === 'true'
   } = {}) {
     super();
     this.apiKey = apiKey;
     this.model = model;
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
+    this.requireGemini = requireGemini;
   }
 
   async normalize(extracted) {
     const fallback = super.normalize(extracted);
-    if (!this.apiKey || !compact(extracted.body, 20)) return fallback;
+    if (!this.apiKey || !compact(extracted.body, 20)) {
+      if (this.requireGemini) throw new Error('Gemini 정규화에 필요한 본문 또는 서버 설정이 없습니다.');
+      return fallback;
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -167,7 +172,8 @@ export class GeminiNormalizationAgent extends NormalizationAgent {
         .trim();
       if (!text) throw new Error('Gemini returned an empty response');
       return normalizeGeminiResult(JSON.parse(text), fallback);
-    } catch {
+    } catch (error) {
+      if (this.requireGemini) throw error;
       return fallback;
     } finally {
       clearTimeout(timer);

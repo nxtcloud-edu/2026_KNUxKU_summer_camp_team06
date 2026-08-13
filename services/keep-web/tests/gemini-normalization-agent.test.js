@@ -65,3 +65,12 @@ test('Gemini 오류 시 규칙 기반 정규화 결과로 복구한다', async (
   assert.equal(result.category, 'Support');
   assert.equal(result.deadline, '2026-08-10');
 });
+
+test('운영 strict 모드에서는 Gemini 오류를 규칙 기반 결과로 숨기지 않는다', async () => {
+  const agent = new GeminiNormalizationAgent({
+    apiKey: 'test-key',
+    requireGemini: true,
+    fetchImpl: async () => ({ ok: false, status: 503, json: async () => ({}) })
+  });
+  await assert.rejects(() => agent.normalize(extracted()), /Gemini request failed/);
+});
