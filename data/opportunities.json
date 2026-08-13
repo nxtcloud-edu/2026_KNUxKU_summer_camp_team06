@@ -1,5 +1,6 @@
 {
   "_schema_note": "B(신민서) 담당. 실제 공고 20건 (지원사업6·공모전5·서포터즈5·부트캠프4, 2026-08-13 수집). raw_text는 원문 그대로(요약/재작성 없음) — normalization_agent.py의 근거 인용(raw_quote) 검증이 여기 의존한다. 정규화 결과는 scripts/run_pipeline.py로 재생성 가능 (data/normalization_results.json).",
+  "_collection_method": "API/크롤러 아님 — 웹 검색으로 공개 공고를 찾아 각 페이지를 직접 fetch, 자격요건을 원문 그대로 복사한 1회성 리서치(로그인 필요 페이지 제외, R6 동일 원칙). opp-grant-03은 PDF 첨부파일이라 pypdf로 추출. 수집 후 20개 URL 전부 extraction_agent.py로 재크롤링해 일치 검증함(20/20). 실제 서비스는 이 방식이 아니라 사용자가 저장하는 순간 extraction_agent.py가 실시간 처리한다 — 자세한 내용은 docs/plan_b.md 1-1절 참고.",
   "_fields": {
     "id": "고유 ID (예: opp-001)",
     "title": "공고 제목",
