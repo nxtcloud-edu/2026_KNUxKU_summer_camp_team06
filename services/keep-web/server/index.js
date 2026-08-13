@@ -10,6 +10,7 @@ import { SupabaseAuthService } from './auth.js';
 import { processIntake } from './workflow.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FRONTEND_DIST = path.join(ROOT, 'frontend', 'dist');
 const DEFAULT_PORT = Number(process.env.PORT || 4173);
 const BODY_LIMIT = 64 * 1024;
 
@@ -79,8 +80,6 @@ async function runAgent(command, payload, session, store) {
 
 async function serveStatic(requestPath, response) {
   const files = {
-    '/': 'web/index.html',
-    '/auth/callback': 'web/index.html',
     '/app.js': 'web/app.js',
     '/styles.css': 'web/styles.css',
     '/vendor/supabase.js': 'node_modules/@supabase/supabase-js/dist/umd/supabase.js',
@@ -88,14 +87,32 @@ async function serveStatic(requestPath, response) {
     '/fixtures/threads.html': 'fixtures/threads.html'
   };
   const relative = files[requestPath];
-  if (!relative) return false;
-  try {
-    const body = await readFile(path.join(ROOT, relative));
-    sendText(response, 200, body, MIME_TYPES[path.extname(relative)] || 'application/octet-stream');
-  } catch {
-    sendText(response, 404, 'Not found');
+  if (relative) {
+    try {
+      const body = await readFile(path.join(ROOT, relative));
+      sendText(response, 200, body, MIME_TYPES[path.extname(relative)] || 'application/octet-stream');
+      return true;
+    } catch {
+      sendText(response, 404, 'Not found');
+      return true;
+    }
   }
-  return true;
+
+  const frontendPath = path.resolve(FRONTEND_DIST, requestPath === '/' ? 'index.html' : '.' + requestPath);
+  if (!frontendPath.startsWith(FRONTEND_DIST + path.sep)) return false;
+  try {
+    const body = await readFile(frontendPath);
+    sendText(response, 200, body, MIME_TYPES[path.extname(frontendPath)] || 'application/octet-stream');
+    return true;
+  } catch {
+    try {
+      const body = await readFile(path.join(FRONTEND_DIST, 'index.html'));
+      sendText(response, 200, body, MIME_TYPES['.html']);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 function configuredSupabase() {
@@ -121,7 +138,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
     }
 
     try {
-      if (request.method === 'GET' && await serveStatic(url.pathname, response)) return;
+      if (request.method === 'GET' && !url.pathname.startsWith('/v1/') && await serveStatic(url.pathname, response)) return;
       if (request.method === 'GET' && url.pathname === '/v1/auth/config') {
         if (!supabase) {
           return sendJson(response, 503, { error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase 인증 설정이 필요합니다.' } });

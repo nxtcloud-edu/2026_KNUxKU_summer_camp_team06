@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/v1': 'http://127.0.0.1:4173',
+      '/v1': process.env.KEEP_ON_API_URL || 'http://127.0.0.1:4173',
     },
   },
 });

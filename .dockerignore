@@ -1,0 +1,9 @@
+.git
+.env
+**/.env
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+services/keep-web/frontend/dist
+data/execution/
