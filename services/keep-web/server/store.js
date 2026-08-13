@@ -147,6 +147,15 @@ export class SupabaseKeeperStore {
     return rows[0] || null;
   }
 
+  async ensureProfile(userId, displayName, accessToken) {
+    const rows = await this.request('profiles?on_conflict=id', accessToken, {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=representation',
+      body: { id: userId, ...(displayName ? { display_name: displayName } : {}) }
+    });
+    return rows[0] || null;
+  }
+
   async getIntake(id, userId, accessToken) {
     const query = new URLSearchParams({ select: '*', id: 'eq.' + id, user_id: 'eq.' + userId });
     const rows = await this.request('intakes?' + query, accessToken);

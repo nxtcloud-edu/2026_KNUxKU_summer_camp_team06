@@ -54,8 +54,10 @@ async function readJson(request) {
 async function serveStatic(requestPath, response) {
   const files = {
     '/': 'web/index.html',
+    '/auth/callback': 'web/index.html',
     '/app.js': 'web/app.js',
     '/styles.css': 'web/styles.css',
+    '/vendor/supabase.js': 'node_modules/@supabase/supabase-js/dist/umd/supabase.js',
     '/fixtures/instagram.html': 'fixtures/instagram.html',
     '/fixtures/threads.html': 'fixtures/threads.html'
   };
@@ -94,6 +96,13 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
 
     try {
       if (request.method === 'GET' && await serveStatic(url.pathname, response)) return;
+      if (request.method === 'GET' && url.pathname === '/v1/auth/config') {
+        if (!supabase) {
+          return sendJson(response, 503, { error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase 인증 설정이 필요합니다.' } });
+        }
+        sendJson(response, 200, { supabase_url: supabase.url, supabase_anon_key: supabase.anonKey });
+        return;
+      }
       const session = auth
         ? await auth.authenticate(request.headers)
         : { userId: 'local-test-user', accessToken: null, email: null };
@@ -103,6 +112,9 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', st
       }
 
       if (request.method === 'GET' && url.pathname === '/v1/me') {
+        if (typeof keeperStore.ensureProfile === 'function') {
+          await keeperStore.ensureProfile(session.userId, session.email ? session.email.split('@')[0] : null, session.accessToken);
+        }
         sendJson(response, 200, { user: { id: session.userId, email: session.email } });
         return;
       }
