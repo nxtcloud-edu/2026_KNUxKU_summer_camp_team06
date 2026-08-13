@@ -1,5 +1,6 @@
 const API_BASE = 'https://keep-on-web-4wvbvyiw4q-du.a.run.app';
 const keepButton = document.querySelector('#keep');
+const dashboardButton = document.querySelector('#dashboard');
 const statusOutput = document.querySelector('#status');
 const connectButton = document.querySelector('#connect');
 const disconnectButton = document.querySelector('#disconnect');
@@ -160,7 +161,9 @@ function collectPageEvidence() {
   };
   const sourceIdentity = postIdentity(sourceUrl);
   const ogTitle = meta('meta[property="og:title"]');
-  const thumbnailUrl = meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]');
+  let thumbnailUrl = meta('meta[property="og:image"]')
+    || meta('meta[property="og:image:secure_url"]')
+    || meta('meta[name="twitter:image"]');
   const description = meta('meta[property="og:description"]')
     || meta('meta[name="twitter:description"]')
     || meta('meta[name="description"]');
@@ -185,6 +188,14 @@ function collectPageEvidence() {
     ? instagramContainers.find((container) => Array.from(container.querySelectorAll('a[href]'))
       .some((anchor) => postIdentity(anchor.href) === sourceIdentity))
     : null;
+  // Instagram은 SPA 화면 전환 중 OG 메타 태그를 비워두거나 늦게 바꾸기도 한다.
+  // 그때는 현재 게시물 article 안의 실제 사진을 썸네일 후보로 사용한다.
+  if (!thumbnailUrl && platform === 'instagram') {
+    const imageScope = currentInstagramContainer || document.querySelector('article, [role="article"]') || document;
+    thumbnailUrl = Array.from(imageScope.querySelectorAll('img'))
+      .map((image) => image.currentSrc || image.getAttribute('src') || image.getAttribute('data-src') || '')
+      .find((url) => /^https:\/\//i.test(url) && !/profile|avatar/i.test(url)) || '';
+  }
   const domText = cleanText((document.querySelector('article') || document.querySelector('[role="article"]') || document.querySelector('main') || document.body)?.innerText || '');
   const cleanInstagramCaption = (value) => cleanText(value)
     .replace(/^[^:\n]{1,120}\s+on Instagram:\s*/i, '')
@@ -409,9 +420,7 @@ async function keepCurrentPage() {
         : '';
       throw new Error(`${result.error?.message || `Intake 실패 (${response.status})`}${details}`);
     }
-    const dashboardUrl = `${API_BASE}${result.dashboard_url}`;
-    setStatus(`저장됨\n${result.intake_id}\n처리 결과 화면을 여는 중...`);
-    await chrome.tabs.create({ url: dashboardUrl });
+    setStatus(`저장했어요\n${result.intake_id}\n이 창을 닫아도 정리는 계속돼요.`);
   } catch (error) {
     setStatus(`Keep 실패\n${error.message}`);
   } finally {
@@ -420,6 +429,9 @@ async function keepCurrentPage() {
 }
 
 keepButton.addEventListener('click', keepCurrentPage);
+dashboardButton.addEventListener('click', async () => {
+  await chrome.tabs.create({ url: API_BASE });
+});
 connectButton.addEventListener('click', connectAccount);
 disconnectButton.addEventListener('click', async () => {
   accessToken = null;

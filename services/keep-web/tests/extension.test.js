@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언한다', async () => {
   const manifest = JSON.parse(await readFile(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
   const popup = await readFile(new URL('../extension/popup.js', import.meta.url), 'utf8');
+  const popupHtml = await readFile(new URL('../extension/popup.html', import.meta.url), 'utf8');
   assert.equal(manifest.manifest_version, 3);
   assert.ok(manifest.permissions.includes('activeTab'));
   assert.ok(manifest.permissions.includes('scripting'));
@@ -15,6 +16,8 @@ test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언
   assert.match(popup, /chrome\.scripting\.executeScript/);
   assert.match(popup, /og:description/);
   assert.match(popup, /og:image/);
+  assert.match(popup, /og:image:secure_url/);
+  assert.match(popup, /querySelectorAll\('img'\)/);
   assert.match(popup, /og:url/);
   assert.match(popup, /reels/);
   assert.match(popup, /post-caption/);
@@ -37,4 +40,6 @@ test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언
   assert.match(popup, /\/v1\/intakes/);
   assert.match(popup, /source_type: 'page_evidence'/);
   assert.match(popup, /chrome\.tabs\.create/);
+  assert.match(popupHtml, /내 정리함 열기/);
+  assert.doesNotMatch(popup, /result\.dashboard_url/);
 });
