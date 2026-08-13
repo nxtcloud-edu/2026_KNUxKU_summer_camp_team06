@@ -179,9 +179,10 @@ def _extract_age_conditions(raw_text: str) -> list[EligibilityCondition]:
 # --- R5: 신청기간도 정규식 기반 (LLM 미사용) ---------------------------------
 #
 # 실제 공고는 "2026. 2. 3." (점 뒤 공백), "2026.03.06"(공백 없음), "2026년 02월 09일"
-# (한글 년월일), "(월)/(화)" 요일 표기, "09:00" 시각 표기가 섞여 나타난다. 두 계열
-# (점 표기 / 한글 표기)을 각각 지원한다. "상시모집"처럼 종료일이 없는 경우는
-# 의도적으로 매칭하지 않는다 (없는 날짜를 추측하지 않음, R2).
+# (한글 년월일), "2026/08/17"(슬래시, 멋쟁이사자처럼 부트캠프 공고에서 실제로 발견),
+# "(월)/(화)" 요일 표기, "09:00" 시각 표기가 섞여 나타난다. 세 계열(점/한글/슬래시)을
+# 각각 지원한다. "상시모집"처럼 종료일이 없는 경우는 의도적으로 매칭하지 않는다
+# (없는 날짜를 추측하지 않음, R2).
 
 _PERIOD_DOT_PATTERN = re.compile(
     r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
@@ -193,6 +194,11 @@ _PERIOD_KOREAN_PATTERN = re.compile(
     r"\s*[~\-–]\s*"
     r"(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
 )
+_PERIOD_SLASH_PATTERN = re.compile(
+    r"\d{4}/\d{1,2}/\d{1,2}(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+    r"\s*[~\-–]\s*"
+    r"(?:\d{4}/)?\d{1,2}/\d{1,2}(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+)
 # 범위("A~B")가 아니라 "신청기한: 2026. 7. 17." 처럼 단일 마감일 하나만 있는 경우.
 # 실제로 "2026 Summer Agentic AI 캠프" 공고문 테스트 중 발견 — 범위 패턴만으로는
 # 이런 단일 날짜 마감을 아예 못 잡는 문제가 있었다. 범위 패턴이 이미 소비한 span과
@@ -202,6 +208,9 @@ _PERIOD_SINGLE_DOT_PATTERN = re.compile(
 )
 _PERIOD_SINGLE_KOREAN_PATTERN = re.compile(
     r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+)
+_PERIOD_SINGLE_SLASH_PATTERN = re.compile(
+    r"\d{4}/\d{1,2}/\d{1,2}(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
 )
 
 
@@ -234,8 +243,10 @@ def _extract_period_conditions(raw_text: str) -> list[EligibilityCondition]:
     # 우선순위: 범위(A~B) 먼저, 그 다음 단일 마감일
     _try(_PERIOD_DOT_PATTERN, Operator.BETWEEN)
     _try(_PERIOD_KOREAN_PATTERN, Operator.BETWEEN)
+    _try(_PERIOD_SLASH_PATTERN, Operator.BETWEEN)
     _try(_PERIOD_SINGLE_DOT_PATTERN, Operator.EQUALS)
     _try(_PERIOD_SINGLE_KOREAN_PATTERN, Operator.EQUALS)
+    _try(_PERIOD_SINGLE_SLASH_PATTERN, Operator.EQUALS)
 
     return conditions
 
