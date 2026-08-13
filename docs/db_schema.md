@@ -32,7 +32,7 @@ erDiagram
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | uuid, pk | Supabase Auth 쓸지 앱 자체 uuid로 갈지 **A와 결정 필요** |
-| birth_year | int | R7: 생년월일 아닌 연도만 |
+| birth_date | date | C 프로필 입력값. 나이 자격을 정확히 판정하기 위한 전체 생년월일 |
 | region | text | 시/군/구 단위까지만 (R7) |
 | status | text | 재학/휴학/졸업/졸업예정/미취업/재직 등 |
 | income_bracket | text, nullable | 온보딩 선택 입력. `docs/personas.md`에서 발견한 이슈: 지금처럼 "100% 이하"류 뭉뚱그린 문자열이면 정밀 매칭이 안 됨 — 퍼센트 구간 enum이나 숫자 컬럼으로 바꾸는 게 나을 수 있음 (C와 논의) |

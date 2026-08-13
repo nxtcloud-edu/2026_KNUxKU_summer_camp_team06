@@ -13,7 +13,7 @@ create table if not exists users (
   user_id                    text primary key,
   name                       text not null default '사용자',
   region                     text,
-  birth_year                 int,
+  birth_date                 date,
   status                     text,
   interests                  jsonb not null default '[]',
   daily_capacity_hours       real not null default 2.0,

@@ -35,7 +35,7 @@ class Verdict(str, Enum):
 
 
 class UserProfileDraft(BaseModel):
-    """Temporary C-side profile until A publishes the shared UserProfile."""
+    """C-owned profile input used for eligibility and recommendation decisions."""
 
     birth_date: Optional[date] = None
     region: Optional[str] = None

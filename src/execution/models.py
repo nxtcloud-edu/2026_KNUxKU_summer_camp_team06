@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Optional
 
@@ -76,7 +76,8 @@ class UserProfile(BaseModel):
     user_id: str
     name: str = "사용자"
     region: Optional[str] = None
-    birth_year: Optional[int] = None
+    # C owns profile intake. A full date is required for exact age eligibility.
+    birth_date: Optional[date] = None
     status: Optional[str] = None       # 예: "대학 재학", "미취업"
     interests: list[str] = Field(default_factory=list)
     # 실행 계획 개인화용 (선택): 하루 가용 시간, 선호 알림 리드타임(일)
