@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import streamlit as st
@@ -40,7 +40,7 @@ def load_opps() -> list[dict]:
 def demo_user() -> UserProfile:
     return UserProfile(
         user_id="user-001", name="김서연", region="서울 관악구",
-        birth_year=2002, status="대학 4학년(재학)",
+        birth_date=date(2002, 1, 1), status="대학 4학년(재학)",
         interests=["디자인", "공모전"], default_reminder_lead_days=3,
     )
 

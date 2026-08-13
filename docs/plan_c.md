@@ -58,6 +58,12 @@ DecisionInput(
 - 대시보드 이벤트로 정렬된 `recent`, `popular` 목록 전달
 - `ChatbotHandoff`를 `이거 할래!` 클릭 시 챗봇 세션의 컨텍스트로 전달
 
+D의 `src.execution.models.UserProfile`은 `birth_date: date | None` 전체 생년월일 필드를
+제공해야 한다. `birth_year`만으로는 생일 전후에 따라 자격 결과가 달라질 수 있으므로 C는
+연도만으로 나이를 추정하지 않는다. 전체 생년월일을 받은 뒤에만 나이 조건을 `PASS` 또는
+`FAIL`로 확정하며, `PASS`인 공고만 `execution_decision_for_selected()`를 통해 실행
+에이전트로 넘긴다.
+
 ### B / 수집·정규화
 
 - 각 공고에 안정적인 `opportunity_id`, `title`, `source_url` 제공

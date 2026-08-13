@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .agent import ExecutionAgent
@@ -40,7 +40,7 @@ def demo_user() -> UserProfile:
         user_id="user-001",
         name="김서연",
         region="서울 관악구",
-        birth_year=2002,
+        birth_date=date(2002, 1, 1),
         status="대학 4학년(재학)",
         interests=["디자인", "공모전"],
         daily_capacity_hours=2.0,

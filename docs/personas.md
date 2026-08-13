@@ -14,7 +14,7 @@
 
 ```
 UserProfile (안):
-  birth_year: int
+  birth_date: date  # YYYY-MM-DD, exact eligibility age calculation
   region: str          # 시/군/구 단위까지만 (R7)
   status: str          # 재학/휴학/졸업/졸업예정/미취업/재직 등 자유 서술
   income_bracket: Optional[str]   # 예: "중위소득 100% 이하" (선택 입력)
