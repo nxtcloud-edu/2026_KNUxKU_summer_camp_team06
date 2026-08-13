@@ -78,7 +78,7 @@ function configuredSupabase() {
     : null;
 }
 
-export function createKeeperServer({ port = DEFAULT_PORT, host = '127.0.0.1', store, authService } = {}) {
+export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOST || '0.0.0.0', store, authService } = {}) {
   const supabase = configuredSupabase();
   const keeperStore = store || (supabase ? new SupabaseKeeperStore(supabase) : new InMemoryKeeperStore());
   const auth = authService || (supabase ? new SupabaseAuthService(supabase) : null);
