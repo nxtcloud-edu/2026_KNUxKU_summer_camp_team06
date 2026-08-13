@@ -25,8 +25,9 @@ import {
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { CalendarPage } from './pages/CalendarPage';
-import { opportunities, type Opportunity } from './data';
-import { startExecution } from './agentApi';
+import { opportunities, setOpportunities, type Opportunity } from './data';
+import { getMyOpportunities, startExecution } from './agentApi';
+import { useAuth } from './lib/auth';
 import { EligibilityEvidence } from './components/opportunity/EligibilityEvidence';
 import { useEligibility, type EligibilityHandle } from './lib/useEligibility';
 import {
@@ -752,7 +753,42 @@ function ProfilePage() {
   );
 }
 
+function LandingPage({ onSignIn }: { onSignIn: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
+  const start = async () => {
+    setLoading(true);
+    try { await onSignIn(); } catch { setLoading(false); }
+  };
+  return (
+    <main className="page home-page landing-page">
+      <p className="section-label">KEEP:ON</p>
+      <h1>저장만 했던 정보가<br /><em>내 기회</em>가 되는 곳</h1>
+      <p>Instagram과 Threads에서 Keep한 정보만 AI가 제목, 내용, 기간, 링크로 정리해드려요.</p>
+      <button type="button" className="primary-action" onClick={() => void start()} disabled={loading}>
+        {loading ? '로그인 화면을 여는 중…' : 'Google로 시작하기'} <ArrowRight size={17} />
+      </button>
+    </main>
+  );
+}
+
 function App() {
+  const { ready, session, signIn } = useAuth();
+  const [, setDataVersion] = useState(0);
+
+  useEffect(() => {
+    if (!session) {
+      setOpportunities([]);
+      setDataVersion((value) => value + 1);
+      return;
+    }
+    void getMyOpportunities()
+      .then((items) => { setOpportunities(items); setDataVersion((value) => value + 1); })
+      .catch(() => { setOpportunities([]); setDataVersion((value) => value + 1); });
+  }, [session]);
+
+  if (!ready) return <main className="page home-page"><p>KEEP:ON을 준비하고 있어요.</p></main>;
+  if (!session) return <LandingPage onSignIn={signIn} />;
+
   return (
     <BrowserRouter>
       <Routes>

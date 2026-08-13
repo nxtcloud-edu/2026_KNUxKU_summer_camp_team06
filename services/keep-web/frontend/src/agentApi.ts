@@ -1,6 +1,7 @@
 import type { DecisionResult } from './types/decision';
 import type { Intake } from './types/intake';
 import { authorizedFetch } from './lib/auth';
+import type { StoredOpportunity } from './data';
 
 export type ProfilePayload = {
   birth_date: string;
@@ -29,6 +30,13 @@ export async function getIntake(intakeId: string): Promise<Intake> {
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message || body.error || '처리 상태를 확인하지 못했어요.');
   return body as Intake;
+}
+
+export async function getMyOpportunities(): Promise<StoredOpportunity[]> {
+  const response = await authorizedFetch('/v1/opportunities');
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || body.error || '저장 목록을 불러오지 못했습니다.');
+  return body.items || [];
 }
 
 export async function startExecution(opportunityId: string, likedOpportunityIds: string[]) {
