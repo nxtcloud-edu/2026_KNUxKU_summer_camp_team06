@@ -10,7 +10,7 @@ import { useAuth } from '../lib/auth';
 const navigation = [
   { to: '/', label: '오늘', icon: Compass },
   { to: '/saved', label: '저장', icon: Bookmark },
-  { to: '/plan', label: '실행', icon: CheckCircle2 },
+  { to: '/plan', label: '계획', icon: CheckCircle2 },
   { to: '/calendar', label: '일정', icon: CalendarDays },
   { to: '/chat', label: 'AI 대화', icon: MessageCircle },
 ];
@@ -18,7 +18,7 @@ const navigation = [
 const titles: Record<string, string> = {
   '/': '오늘',
   '/saved': '저장한 정보',
-  '/plan': '실행 계획',
+  '/plan': '계획',
   '/calendar': '일정',
   '/chat': 'AI 대화',
   '/profile': '내 정보',
@@ -27,7 +27,7 @@ const titles: Record<string, string> = {
 export function AppShell() {
   const location = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  // 확장프로그램은 Keep 직후 /?intake_id=... 로 웹을 연다. 어느 화면에서든 처리 상태를 보여준다.
+  // URL에 intake_id가 있으면 어느 화면에서든 해당 Keep의 처리 상태를 보여준다.
   const [searchParams, setSearchParams] = useSearchParams();
   const [dismissedIntake, setDismissedIntake] = useState<string | null>(null);
   const intakeParam = searchParams.get('intake_id');

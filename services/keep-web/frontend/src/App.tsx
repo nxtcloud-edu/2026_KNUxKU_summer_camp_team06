@@ -18,6 +18,7 @@ import {
   Settings2,
   Sparkles,
   Target,
+  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ import { OrderTracking } from './components/ui/order-tracking';
 import { AgentProgressCard } from './components/ui/agent-progress-card';
 import {
   allPlans,
+  clearPlan,
   formatPlanDate,
   planFor,
   setTaskDone,
@@ -106,13 +108,32 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
           : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <><span /><i /><b /><em /></>}
       </div>
       <div className="opportunity-card-copy">
-        <div><span>{item.category}</span>{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
+        <div><CategoryTag category={item.category} />{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
         <h4>{item.title}</h4>
         <p>{item.organization}</p>
         <small>다음: {nextTask}</small>
+        <PlatformLogo platform={item.savedFrom} />
       </div>
     </Link>
   );
+}
+
+function categoryTone(category: string) {
+  const value = category.trim().toLowerCase();
+  if (value === 'competition') return 'competition';
+  if (value === 'support') return 'support';
+  if (value === 'benefit') return 'benefit';
+  return 'other';
+}
+
+function CategoryTag({ category }: { category: string }) {
+  return <span className={`category-tag category-tag-${categoryTone(category)}`}>{category}</span>;
+}
+
+function PlatformLogo({ platform }: { platform: string }) {
+  const name = platform.trim().toLowerCase();
+  const logo = name === 'instagram' || name === 'threads' || name === 'x' || name === 'youtube' ? name : null;
+  return logo ? <img className="platform-logo" src={`/logos/${logo}.png`} alt={`${logo}에서 저장`} /> : null;
 }
 
 function SavedPage() {
@@ -308,7 +329,7 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
     <div className="page detail-page">
       <Link to="/saved" className="back-link"><ArrowLeft size={17} />저장 목록</Link>
       <section className={`detail-hero accent-${item.accent}`}>
-        <div className="detail-top"><span>{item.category}</span><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div>
+        <div className="detail-top"><CategoryTag category={item.category} /><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div>
         <p className="organization">{item.organization}</p>
         <h2>{item.title}</h2>
         <div className="detail-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
@@ -494,7 +515,8 @@ function PlanPage() {
           const progress = tasks.length ? done / tasks.length : 0;
           const next = tasks.find((task) => !task.done);
           return (
-            <Link to={`/plan/${item.id}`} key={item.id} className={`plan-row accent-${item.accent}`}>
+            <div key={item.id} className={`plan-row accent-${item.accent}`}>
+              <Link to={`/plan/${item.id}`} className="plan-row-link">
               <span className="plan-number">{String(index + 1).padStart(2, '0')}</span>
               <div className="plan-copy">
                 <span>{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
@@ -504,7 +526,16 @@ function PlanPage() {
               <div className="mini-progress"><span style={{ transform: `scaleX(${progress})` }} /></div>
               <strong>{done}/{tasks.length}</strong>
               <ArrowRight size={18} />
-            </Link>
+              </Link>
+              <button
+                type="button"
+                className="plan-remove"
+                aria-label={`${item.title} 계획에서 삭제`}
+                onClick={() => { clearPlan(item.id); setDecision(item.id, 'none'); }}
+              >
+                <Trash2 size={16} />삭제
+              </button>
+            </div>
           );
         })}
         {!plans.length && (
@@ -536,7 +567,7 @@ function PlanDetail({ item }: { item: Opportunity }) {
 
   return (
     <div className="page plan-detail">
-      <Link to="/plan" className="back-link"><ArrowLeft size={17} />실행 계획</Link>
+      <Link to="/plan" className="back-link"><ArrowLeft size={17} />계획</Link>
       <div className="plan-detail-head">
         <div>
           <span className="section-label">{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>

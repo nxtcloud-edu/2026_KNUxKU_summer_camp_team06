@@ -628,15 +628,17 @@ img { max-width: 100%; display: block; }
   padding: 18px 10px 10px;
 }
 .opportunity-card-copy > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.opportunity-card-copy > div span {
+.category-tag {
   padding: 6px 11px;
   border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--accent) 26%, white);
-  color: var(--accent-color);
   font-size: var(--text-2xs);
   font-weight: 750;
   white-space: nowrap;
 }
+.category-tag-competition { background: #ebe9ff; color: #403b98; }
+.category-tag-support { background: #e1f5ed; color: #176b52; }
+.category-tag-benefit { background: #fff1ce; color: #9a5a00; }
+.category-tag-other { background: var(--canvas); color: var(--ink-2); }
 .opportunity-card-copy > div strong { color: var(--accent-color); font-size: var(--text-xl); font-weight: 750; letter-spacing: -.035em; }
 .opportunity-card-copy h4 {
   min-height: 52px;
@@ -657,6 +659,15 @@ img { max-width: 100%; display: block; }
   font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.platform-logo {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+  opacity: .9;
 }
 
 /* ------------------------------------------------------------------- 6. Saved */
@@ -937,7 +948,7 @@ img { max-width: 100%; display: block; }
 .opportunity-row:hover { transform: translateX(6px); border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .opportunity-row:hover::before { scale: 1 1; }
 .row-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.row-meta span:first-child {
+.row-meta .category-tag {
   width: fit-content;
   padding: 6px 11px;
   border-radius: var(--r-pill);
@@ -1136,7 +1147,7 @@ img { max-width: 100%; display: block; }
   --accent: var(--primary);
   min-height: 124px;
   display: grid;
-  grid-template-columns: 56px minmax(220px, 1fr) minmax(100px, 180px) 46px 22px;
+  grid-template-columns: 56px minmax(220px, 1fr) minmax(100px, 180px) 46px 22px auto;
   gap: 20px;
   align-items: center;
   padding: 22px 24px;
@@ -1145,6 +1156,7 @@ img { max-width: 100%; display: block; }
   background: var(--white);
   transition: transform var(--dur-3) var(--ease-out), box-shadow var(--dur-3) ease, border-color var(--dur-2) ease;
 }
+.plan-row-link { display: contents; }
 .plan-row:hover { transform: translateX(6px); border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .plan-number { color: var(--accent); font-size: var(--text-lg); font-weight: 750; letter-spacing: -.03em; }
 .plan-copy > span { display: block; color: var(--ink-3); font-size: var(--text-2xs); font-weight: 750; letter-spacing: .05em; }
@@ -1163,6 +1175,20 @@ img { max-width: 100%; display: block; }
 .plan-row > strong { color: var(--ink-2); font-size: var(--text-sm); font-weight: 750; text-align: center; }
 .plan-row > svg { color: var(--ink-3); transition: transform var(--dur-2) var(--ease-out); }
 .plan-row:hover > svg { transform: translateX(4px); color: var(--accent-color); }
+.plan-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--white);
+  color: var(--ink-3);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+.plan-remove:hover { border-color: #e7bbbb; background: #fff5f5; color: #b94d4d; }
 
 .plan-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 40px; padding: 6px 0 40px; }
 .plan-detail-head h2 {
@@ -1578,7 +1604,7 @@ img { max-width: 100%; display: block; }
   .detail-hero .organization { margin-top: 40px; }
   .detail-deadline { margin-top: 22px; }
 
-  .plan-row { grid-template-columns: 34px minmax(0, 1fr) auto; min-height: 130px; }
+  .plan-row { grid-template-columns: 34px minmax(0, 1fr) auto auto; min-height: 130px; }
   .plan-row .mini-progress, .plan-row > strong { display: none; }
   .plan-detail-head { align-items: flex-start; gap: 20px; }
   .progress-ring { flex-basis: 96px; width: 96px; height: 96px; }

@@ -173,6 +173,17 @@ export function setTaskDue(opportunityId: string, taskId: string, dueAt: Date) {
   commit({ ...getOverrides(), [key]: { ...getOverrides()[key], dueAt: dueAt.toISOString() } });
 }
 
+/** 계획을 목록에서 지울 때 해당 항목의 완료·일정 수정 기록도 함께 비운다. */
+export function clearPlan(opportunityId: string) {
+  const next = Object.fromEntries(
+    Object.entries(getOverrides()).filter(([key]) => !key.startsWith(`${opportunityId}:`)),
+  );
+  commit(next);
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.removeItem(`keep-on-execution-${opportunityId}`);
+  }
+}
+
 export function usePlanOverrides(): PlanOverrides {
   return useSyncExternalStore(subscribe, getOverrides, () => EMPTY);
 }
