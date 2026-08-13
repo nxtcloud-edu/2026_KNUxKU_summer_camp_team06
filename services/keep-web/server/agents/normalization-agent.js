@@ -49,6 +49,12 @@ function summaryFromBody(body) {
   return compact(body.replace(/https?:\/\/\S+/gi, ''), 500);
 }
 
+function contentCategory(deadline) {
+  // 개인 자격 조건을 추출하지 못한 SNS 저장 항목은 공고 판정 대상으로 보내지 않는다.
+  // 마감이 있으면 일정 정보, 없으면 일반 정보로 구분해 C가 '해당 없음'으로 표시한다.
+  return deadline ? 'time_sensitive_info' : 'general_info';
+}
+
 function ruleBasedNormalize(extracted) {
   const searchable = [extracted.title, extracted.body, extracted.deadline_text].join('\n').toLowerCase();
   const scores = CATEGORY_RULES.map(({ category, words }) => ({
@@ -71,7 +77,10 @@ function ruleBasedNormalize(extracted) {
     links: extracted.links,
     evidence: extracted.evidence,
     confidence: category ? Math.min(0.98, 0.7 + best.score * 0.1) : 0.2,
-    normalization_method: 'rules'
+    normalization_method: 'rules',
+    content_category: contentCategory(parseDeadline(extracted.deadline_text)),
+    conditions: [],
+    status: 'ok'
   };
 }
 
@@ -89,7 +98,10 @@ function normalizeGeminiResult(result, fallback) {
     category,
     deadline,
     confidence: category ? 0.85 : fallback.confidence,
-    normalization_method: 'gemini'
+    normalization_method: 'gemini',
+    content_category: contentCategory(deadline),
+    conditions: [],
+    status: 'ok'
   };
 }
 

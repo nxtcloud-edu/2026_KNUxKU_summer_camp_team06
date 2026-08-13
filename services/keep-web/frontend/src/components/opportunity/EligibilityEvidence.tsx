@@ -212,10 +212,14 @@ export function EligibilityEvidence({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">원문에서 확인된 참여 조건이 없어요.</p>
+        <p className="text-sm text-muted-foreground">
+          {eligibility.overall === 'not_applicable'
+            ? '이 저장 정보에는 개인 자격 조건을 확인할 내용이 없어요.'
+            : '원문에서 확인된 참여 조건이 없어요.'}
+        </p>
       )}
 
-      <Card className="p-4">
+      {!(eligibility.overall === 'not_applicable' && feasibility.days_remaining === null) && <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="text-sm font-semibold">준비 여유</strong>
           <Badge variant="secondary" className="h-5 px-2 text-[11px]">
@@ -246,7 +250,7 @@ export function EligibilityEvidence({
             ))}
           </ul>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
