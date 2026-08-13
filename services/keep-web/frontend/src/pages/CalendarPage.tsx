@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import {
   EventManager,
@@ -96,7 +96,6 @@ export const PLAN_EVENT_PREFIX = 'plan:';
 export const DEADLINE_EVENT_PREFIX = 'deadline:';
 
 export function CalendarPage() {
-  const navigate = useNavigate();
   const decisions = useDecisions();
   const overrides = usePlanOverrides();
 
@@ -157,21 +156,6 @@ export function CalendarPage() {
     setTaskDue(opportunityId, taskId, patch.startTime);
   }, []);
 
-  const handleSelect = useCallback(
-    (event: Event) => {
-      if (event.id.startsWith(PLAN_EVENT_PREFIX)) {
-        navigate(`/plan/${event.id.slice(PLAN_EVENT_PREFIX.length).split(':')[0]}`);
-        return true;
-      }
-      if (event.id.startsWith(DEADLINE_EVENT_PREFIX)) {
-        navigate(`/saved/${event.id.slice(DEADLINE_EVENT_PREFIX.length)}`);
-        return true;
-      }
-      return false;
-    },
-    [navigate],
-  );
-
   const joinedCount = opportunities.filter((item) => decisionOf(decisions, item) === 'joined').length;
 
   return (
@@ -203,7 +187,6 @@ export function CalendarPage() {
         hourRange={[8, 22]}
         matchQuery={matchesKorean}
         onEventUpdate={handleUpdate}
-        onEventSelect={handleSelect}
       />
     </div>
   );

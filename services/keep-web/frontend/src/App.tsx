@@ -9,7 +9,6 @@ import {
   Clock3,
   CheckCircle2,
   ExternalLink,
-  FileText,
   Filter,
   MessageCircleQuestion,
   MoreHorizontal,
@@ -29,6 +28,7 @@ import { opportunities, setOpportunities, type Opportunity } from './data';
 import { createSourceIntake, getIntake, getMyOpportunities, startExecution } from './agentApi';
 import { useAuth } from './lib/auth';
 import { OrderTracking } from './components/ui/order-tracking';
+import { AgentProgressCard } from './components/ui/agent-progress-card';
 import {
   allPlans,
   formatPlanDate,
@@ -118,8 +118,7 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
 function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
-  const [uploads, setUploads] = useState<Array<{ id: string; name: string; preview?: string; status: string }>>([]);
-  const [savedFile, setSavedFile] = useState<{ name: string; preview?: string } | null>(null);
+  const [uploads, setUploads] = useState<Array<{ id: string; name: string; status: string }>>([]);
   const decisions = useDecisions();
   const recent = useRecentQueries();
   const filters = ['전체', '마감 임박', '확인 필요', '참여 결정', '나중에', '보관'];
@@ -127,12 +126,10 @@ function SavedPage() {
     const added = Array.from(files).map((file, index) => ({
       id: `${Date.now()}-${index}-${file.name}`,
       name: file.name,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
       status: '업로드 중',
     }));
     if (!added.length) return;
     setUploads((current) => [...added, ...current]);
-    setSavedFile(added[0]);
     for (const [index, file] of Array.from(files).entries()) {
       try {
         const intake = await createSourceIntake(file);
@@ -151,7 +148,6 @@ function SavedPage() {
         setUploads((current) => current.map((entry) => entry.id === added[index].id ? { ...entry, status: error instanceof Error ? error.message : '분석 실패' } : entry));
       }
     }
-    window.setTimeout(() => setSavedFile(null), 1650);
   };
   const filtered = useMemo(() => opportunities.filter((item) => {
     // 초성('ㅋㄹㄷ')과 붙여쓴 검색어('클라우드캠퍼스')도 찾을 수 있어야 한다.
@@ -197,9 +193,7 @@ function SavedPage() {
       </label>
       {uploads.length > 0 && (
         <div className="upload-queue" aria-live="polite">
-          {uploads.map((file) => (
-            <span key={file.id}><Check size={14} />{file.name}<small>{file.status}</small></span>
-          ))}
+          {uploads.map((file) => <UploadProgress key={file.id} file={file} />)}
           <span className="upload-queue-note">
             파일은 내 저장소에 보관되고 Gemini가 내용을 읽어 저장 정보로 정리합니다.
           </span>
@@ -253,8 +247,33 @@ function SavedPage() {
           onShowArchived={() => setFilter('보관')}
         />
       )}
-      {savedFile && <div className="upload-save-overlay" role="status" aria-live="polite"><div className="upload-save-card"><div className="upload-save-thumb">{savedFile.preview ? <img src={savedFile.preview} alt="" /> : <FileText size={28} />}</div><div><span><CheckCircle2 size={16} /> 정리함에 저장했어요</span><strong>{savedFile.name}</strong><small>내용을 읽고 기회 정보로 정리하는 중이에요.</small></div></div></div>}
     </div>
+  );
+}
+
+function UploadProgress({ file }: { file: { name: string; status: string } }) {
+  const stage = file.status === '업로드 중' || file.status === 'QUEUED' || file.status === 'RECEIVED' || file.status === 'EVENT_PENDING' || file.status === 'EVENT_SENT'
+    ? 0
+    : file.status === 'EXTRACTING'
+      ? 1
+      : file.status === 'NORMALIZING' || file.status === 'VALIDATING' || file.status === 'Gemini가 내용을 읽는 중'
+        ? 2
+        : 3;
+  const failed = file.status.includes('실패');
+  if (stage === 3) {
+    return <span className={failed ? 'upload-queue-error' : ''}><Check size={14} />{file.name}<small>{file.status}</small></span>;
+  }
+  return (
+    <AgentProgressCard
+      className="upload-agent-progress"
+      title={`${file.name} ${stage === 1 ? '본문을 읽고 있어요' : stage === 2 ? '정보를 정리하고 있어요' : '안전하게 저장하고 있어요'}`}
+      activeStep={stage}
+      steps={[
+        { label: '파일 저장', detail: '내 저장소에 보관해요' },
+        { label: '문서 읽기 에이전트', detail: '본문과 날짜를 찾고 있어요' },
+        { label: '정보 정리 에이전트', detail: '제목과 내용을 정리해요' },
+      ]}
+    />
   );
 }
 
@@ -436,6 +455,18 @@ function StartExecutionButton({ item, onStarted }: { item: Opportunity; onStarte
     >
       {label} <ArrowRight size={17} />
     </button>
+    {state === 'loading' && (
+      <AgentProgressCard
+        className="plan-agent-progress"
+        title="Planning Agent가 실행 순서를 만들고 있어요"
+        activeStep={1}
+        steps={[
+          { label: '정보 읽기', detail: '저장한 내용과 일정을 확인해요' },
+          { label: '계획 설계', detail: '실행 순서를 제안하고 있어요' },
+          { label: '초안 준비', detail: '검토할 수 있게 정리해요' },
+        ]}
+      />
+    )}
     {state === 'error' && <small className="execution-error">{message}</small>}
   </>;
 }
