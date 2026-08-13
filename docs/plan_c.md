@@ -24,6 +24,11 @@ feed = recommend_from_likes(profile, items, liked_opportunity_ids)
 handoff = create_chatbot_handoff(feed, opportunity_id)
 ```
 
+프론트엔드가 직접 호출할 C 서비스는 `src/recommendation_service.py`의
+`RecommendationService`다. `from_b_files()`로 B의 공고·정규화 결과를 한 번 읽은 뒤,
+`dashboard()`, `recommend()`, `execution_handoff()` 순서로 호출한다. 프로필 입력은
+`ProfileSubmission`을 사용하며 전체 `birth_date`가 필수다.
+
 `items`의 각 원소는 아래처럼 B의 `NormalizationResult`와 화면용·추천용 신호를 함께 받는다.
 
 ```python
