@@ -6,3 +6,8 @@ venv/
 .DS_Store
 *.egg-info/
 .pytest_cache/
+
+# Execution Agent 런타임 생성물 (모두 데모 실행으로 재생성 가능)
+data/execution/execution_db.json
+data/execution/_streamlit_session.json
+data/execution/execution_view.html
