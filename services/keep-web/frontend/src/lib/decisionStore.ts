@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
  * Keep은 쉽고 정리는 어렵기 때문에, 긍정("할래")만 있으면 목록이 계속 쌓인다.
  * 보류(later)와 보관(archived)까지 있어야 목록이 줄어든다.
  */
-export type DecisionState = 'none' | 'joined' | 'later' | 'archived';
+export type DecisionState = 'none' | 'planning' | 'joined' | 'later' | 'archived';
 
 export interface DecisionRecord {
   state: DecisionState;
@@ -89,6 +89,7 @@ export function useDecisions(): DecisionStore {
 }
 
 export const DECISION_LABEL: Record<Exclude<DecisionState, 'none'>, string> = {
+  planning: '계획 초안',
   joined: '참여 결정',
   later: '나중에',
   archived: '보관',

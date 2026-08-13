@@ -4,7 +4,7 @@ import { authorizedFetch } from './lib/auth';
 import type { StoredOpportunity } from './data';
 
 export type ProfilePayload = {
-  birth_date: string;
+  birth_date?: string;
   region?: string;
   status?: string;
   /** 백엔드 UserProfileDraft 의 소득 구간 (소득 조건 판정에 사용) */
@@ -13,9 +13,7 @@ export type ProfilePayload = {
   weekly_available_hours?: number;
 };
 
-const fallbackProfile: ProfilePayload = {
-  birth_date: '2002-01-01', region: '서울 관악구', status: 'student', interests: ['AI', '클라우드'], weekly_available_hours: 8,
-};
+const fallbackProfile: ProfilePayload = { interests: [] };
 
 export function loadProfile(): ProfilePayload {
   try { return { ...fallbackProfile, ...JSON.parse(localStorage.getItem('keep-on-profile') || '{}') }; } catch { return fallbackProfile; }

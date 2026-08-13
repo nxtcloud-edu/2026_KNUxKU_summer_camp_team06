@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from src.execution.agent import ExecutionAgent
-from src.execution.models import ExecutionContext, Opportunity, UserProfile
+from src.execution.models import EligibilityDecision, ExecutionContext, Opportunity, UserProfile
 from src.execution.store import ExecutionStore
 from src.decision_engine import evaluate_opportunity
 from src.c_integration import execution_decision_for_selected
@@ -85,22 +85,30 @@ def run(request: dict) -> dict:
         )
         return {"items": [item.model_dump(mode="json") for item in items]}
 
-    profile = ProfileSubmission.model_validate(request["profile"])
-    likes = request.get("liked_opportunity_ids", [])
-    feed = agent_service.recommend(profile, likes)
-    if command == "recommend":
-        return feed.model_dump(mode="json")
-
     opportunity_id = request["opportunity_id"]
     entry = agent_service._by_id.get(opportunity_id)
     if entry is None:
         raise ValueError("Selected opportunity ID is not available to the decision agent.")
-    decision_result = evaluate_opportunity(profile.to_decision_profile(), entry.input)
-    if command == "evaluate":
-        return decision_result.model_dump(mode="json")
+
+    if command != "execution":
+        profile = ProfileSubmission.model_validate(request["profile"])
+        likes = request.get("liked_opportunity_ids", [])
+        feed = agent_service.recommend(profile, likes)
+        if command == "recommend":
+            return feed.model_dump(mode="json")
+        decision_result = evaluate_opportunity(profile.to_decision_profile(), entry.input)
+        if command == "evaluate":
+            return decision_result.model_dump(mode="json")
 
     if command == "execution":
-        decision = execution_decision_for_selected(user_id=request["user_id"], result=decision_result)
+        # Planning은 자격 판정이 아니라 사용자가 저장한 정보를 실행 순서로 바꾸는 기능이다.
+        # 캘린더 반영은 프론트의 명시적 승인 이후에만 이뤄진다.
+        decision = EligibilityDecision(
+            opportunity_id=opportunity_id,
+            user_id=request["user_id"],
+            eligible=True,
+            reason="사용자가 요청한 계획 초안입니다.",
+        )
         records = request.get("opportunities")
         if isinstance(records, list):
             records = [opportunity_record(row) for row in records]
@@ -110,7 +118,7 @@ def run(request: dict) -> dict:
         if record is None:
             raise ValueError("Selected opportunity ID is not available to the execution agent.")
         context = ExecutionContext(
-            user=profile_for_execution(request["user_id"], profile.model_dump(mode="json")),
+            user=profile_for_execution(request["user_id"], request.get("profile", {})),
             opportunity=Opportunity.model_validate(record),
             decision=decision,
             now=datetime.now(),

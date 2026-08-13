@@ -28,8 +28,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
 import { getMyOpportunities, startExecution } from './agentApi';
 import { useAuth } from './lib/auth';
-import { EligibilityEvidence } from './components/opportunity/EligibilityEvidence';
-import { useEligibility, type EligibilityHandle } from './lib/useEligibility';
+import { OrderTracking } from './components/ui/order-tracking';
 import {
   allPlans,
   formatPlanDate,
@@ -70,8 +69,8 @@ function HomePage() {
         <p className="section-label">
           {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
         </p>
-        <h2>수정님을 위해<br />기회를 <em>정리했어요</em></h2>
-        <p>저장한 정보 중 지금 확인하면 좋은 기회를 분류해 두었어요.</p>
+        <h2>저장한 정보를<br /><em>정리했어요</em></h2>
+        <p>저장한 정보를 제목, 내용, 기간과 링크로 정리해 두었어요.</p>
       </header>
 
       {joined.length > 0 && (
@@ -264,8 +263,6 @@ function OpportunityDetailPage() {
 }
 
 function OpportunityDetail({ item }: { item: Opportunity }) {
-  // 근거 카드와 결정 버튼이 판정 결과를 공유한다. 요청은 한 번만 나간다.
-  const eligibility = useEligibility(item.id);
   return (
     <div className="page detail-page">
       <Link to="/saved" className="back-link"><ArrowLeft size={17} />저장 목록</Link>
@@ -285,11 +282,6 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
         <div className="detail-main">
           <section className="content-section"><h3>어떤 기회인가요?</h3><p>{item.summary}</p></section>
           <section className="content-section">
-            <h3>참여 조건과 판정 근거</h3>
-            <p className="section-note">각 조건을 원문 문장과 함께 보여드려요. 확인이 필요한 항목은 그대로 남겨둡니다.</p>
-            <EligibilityEvidence item={item} state={eligibility.state} onRetry={eligibility.retry} />
-          </section>
-          <section className="content-section">
             <h3>이거 물어보기</h3>
             <p className="section-note">저장한 원문과 일정만 근거로 답해요.</p>
             <div className="ask-chips">
@@ -306,13 +298,13 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
             </div>
           </section>
         </div>
-        <DecisionCard item={item} eligibility={eligibility} />
+        <DecisionCard item={item} />
       </div>
     </div>
   );
 }
 
-function DecisionCard({ item, eligibility }: { item: Opportunity; eligibility: EligibilityHandle }) {
+function DecisionCard({ item }: { item: Opportunity }) {
   const navigate = useNavigate();
   const decisions = useDecisions();
   const record = resolveDecision(decisions, item.id, item.initialDecision);
@@ -329,6 +321,10 @@ function DecisionCard({ item, eligibility }: { item: Opportunity; eligibility: E
     joined: {
       title: '참여하기로\n했어요',
       body: '실행 계획에서 남은 단계를 이어가면 됩니다.',
+    },
+    planning: {
+      title: '계획 초안을\n만들었어요',
+      body: '내용을 검토한 뒤 원할 때만 캘린더에 반영하세요.',
     },
     later: {
       title: '나중에\n볼 기회예요',
@@ -350,15 +346,14 @@ function DecisionCard({ item, eligibility }: { item: Opportunity; eligibility: E
       </h3>
       <p>{copy[decision].body}</p>
 
-      {decision === 'joined' ? (
+      {decision === 'joined' || decision === 'planning' ? (
         <button type="button" className="primary-action" onClick={() => navigate(`/plan/${item.id}`)}>
-          실행 계획 보기 <ArrowRight size={17} />
+          {decision === 'planning' ? '계획 초안 검토하기' : '실행 계획 보기'} <ArrowRight size={17} />
         </button>
       ) : (
         <StartExecutionButton
           item={item}
-          eligibility={eligibility}
-          onStarted={() => setDecision(item.id, 'joined')}
+          onStarted={() => setDecision(item.id, 'planning')}
         />
       )}
 
@@ -393,12 +388,10 @@ function DecisionCard({ item, eligibility }: { item: Opportunity; eligibility: E
   );
 }
 
-function StartExecutionButton({ item, eligibility, onStarted }: { item: Opportunity; eligibility: EligibilityHandle; onStarted?: () => void }) {
+function StartExecutionButton({ item, onStarted }: { item: Opportunity; onStarted?: () => void }) {
   const navigate = useNavigate();
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [message, setMessage] = useState('');
-  const { state: check, retry } = eligibility;
-  const overall = check.status === 'ready' ? check.result.eligibility.overall : null;
   const start = async () => {
     setState('loading');
     try {
@@ -411,27 +404,16 @@ function StartExecutionButton({ item, eligibility, onStarted }: { item: Opportun
       setMessage(error instanceof Error ? error.message : '실행 계획을 만들지 못했어요.');
     }
   };
-  const label = check.status === 'loading'
-    ? '조건 확인 중…'
-    : check.status === 'error'
-      ? '조건 다시 확인하기'
-      : overall === 'pass'
-        ? (state === 'loading' ? '계획 만드는 중…' : '이거 할래!')
-        : overall === 'unknown'
-          ? '조건 확인이 먼저예요'
-          : '지금은 조건이 안 맞아요';
+  const label = state === 'loading' ? '계획 만드는 중…' : '계획 초안 만들기';
   return <>
     <button
       type="button"
       className="primary-action"
-      onClick={check.status === 'error' ? retry : start}
-      disabled={state === 'loading' || check.status === 'loading' || (check.status === 'ready' && overall !== 'pass')}
+      onClick={start}
+      disabled={state === 'loading'}
     >
       {label} <ArrowRight size={17} />
     </button>
-    {check.status === 'error' && <small className="execution-error">{check.message} 잠시 후 다시 확인해 주세요.</small>}
-    {check.status === 'ready' && overall === 'unknown' && <small className="execution-error">위 근거에서 &lsquo;확인 필요&rsquo;로 남은 조건을 채우면 계획을 만들 수 있어요.</small>}
-    {check.status === 'ready' && overall === 'fail' && <small className="execution-error">불충족 조건이 있어 실행 계획을 만들지 않아요. 근거를 확인해 보세요.</small>}
     {state === 'error' && <small className="execution-error">{message}</small>}
   </>;
 }
@@ -441,7 +423,7 @@ function PlanPage() {
   const overrides = usePlanOverrides();
   const plans = useMemo(
     () => allPlans(overrides)
-      .filter(({ item }) => decisionOf(decisions, item) === 'joined')
+      .filter(({ item }) => ['planning', 'joined'].includes(decisionOf(decisions, item)))
       .sort((a, b) => (a.item.dDay ?? Number.MAX_SAFE_INTEGER) - (b.item.dDay ?? Number.MAX_SAFE_INTEGER)),
     [decisions, overrides],
   );
@@ -451,7 +433,7 @@ function PlanPage() {
       <section className="page-intro narrow">
         <p className="section-label">ACTION PLAN</p>
         <h2>생각은 짧게,<br />실행은 작게</h2>
-        <p>참여하기로 정한 기회를 마감 순서대로 보여드려요.</p>
+        <p>계획 초안은 검토 후 캘린더에 반영할 수 있어요.</p>
       </section>
       <div className="plan-stack">
         {plans.map(({ item, tasks }, index) => {
@@ -475,8 +457,8 @@ function PlanPage() {
         {!plans.length && (
           <div className="empty-state">
             <CheckCircle2 size={24} />
-            <strong>아직 참여를 결정한 기회가 없어요</strong>
-            <p>저장한 기회를 열어 &lsquo;이거 할래!&rsquo;를 누르면 마감까지의 단계가 여기에 생겨요.</p>
+            <strong>아직 만든 계획이 없어요</strong>
+            <p>저장한 정보를 열어 &lsquo;계획 초안 만들기&rsquo;를 누르면 실행 순서를 제안해 드려요.</p>
           </div>
         )}
       </div>
@@ -493,6 +475,8 @@ function PlanDetailPage() {
 
 function PlanDetail({ item }: { item: Opportunity }) {
   const overrides = usePlanOverrides();
+  const decisions = useDecisions();
+  const decision = decisionOf(decisions, item);
   const tasks = useMemo(() => planFor(item, overrides), [item, overrides]);
   const done = tasks.filter((task) => task.done).length;
   const progress = tasks.length ? done / tasks.length : 0;
@@ -516,6 +500,25 @@ function PlanDetail({ item }: { item: Opportunity }) {
           <div><strong>{Math.round(progress * 100)}%</strong><span>완료</span></div>
         </div>
       </div>
+      {decision === 'planning' && (
+        <section className="tw-root mb-6 rounded-xl border bg-card p-5">
+          <p className="section-label">PLAN REVIEW</p>
+          <h3 className="mt-1 text-lg font-bold">이 계획을 캘린더에 반영할까요?</h3>
+          <p className="mt-1 text-sm text-muted-foreground">아래 순서를 검토한 뒤 반영하면 캘린더와 알림 대상에 추가됩니다.</p>
+          <OrderTracking
+            className="mt-5"
+            steps={tasks.map((task) => ({
+              name: task.title,
+              timestamp: formatPlanDate(task.dueAt),
+              isCompleted: task.done,
+            }))}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="primary-action" onClick={() => setDecision(item.id, 'joined')}>캘린더에 반영하기</button>
+            <button type="button" className="secondary-action" onClick={() => setDecision(item.id, 'none')}>초안으로 두지 않기</button>
+          </div>
+        </section>
+      )}
       <section className="generated-plan" aria-label={`${item.title} 실행 계획`}>
         <div className="generated-plan-head">
           <div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div>
@@ -657,7 +660,6 @@ function ChatPage() {
 function ProfilePage() {
   const [reminders, setReminders] = useState(true);
   const stored = useStoredProfile();
-  const { session } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(
     () => missingRequired(stored).length > 0 && !isOnboardingDone(),
   );
@@ -667,10 +669,10 @@ function ProfilePage() {
   return (
     <div className="page profile-page">
       <section className="profile-hero">
-        <span className="large-avatar">{(session?.user.user_metadata.full_name || session?.user.email || '내').slice(0, 1)}</span>
+        <span className="large-avatar">내</span>
         <div>
           <p className="section-label">MY PROFILE</p>
-          <h2>{session?.user.user_metadata.full_name || '내 프로필'}</h2>
+          <h2>내 프로필</h2>
           <p>{stored.status || '아직 입력한 프로필 정보가 없어요'}</p>
         </div>
       </section>
