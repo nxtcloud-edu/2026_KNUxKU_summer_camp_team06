@@ -6,6 +6,8 @@ const disconnectButton = document.querySelector('#disconnect');
 const redirectOutput = document.querySelector('#redirect');
 
 let accessToken = null;
+let refreshToken = null;
+let expiresAt = 0;
 
 function setStatus(message) {
   statusOutput.textContent = message;
@@ -27,19 +29,61 @@ function updateConnectionUi() {
 }
 
 async function loadSettings() {
-  const stored = await chrome.storage.local.get(['accessToken']);
+  const stored = await chrome.storage.local.get(['accessToken', 'refreshToken', 'expiresAt']);
   accessToken = stored.accessToken || null;
+  refreshToken = stored.refreshToken || null;
+  expiresAt = Number(stored.expiresAt || 0);
+  if (accessToken && !refreshToken) {
+    accessToken = null;
+    await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
+    setStatus('연결 정보를 업데이트하려면 Google 계정을 한 번 다시 연결해 주세요.');
+  }
   redirectOutput.textContent = `Supabase Redirect URL: ${chrome.identity.getRedirectURL('auth/callback')}`;
   updateConnectionUi();
+}
+
+async function authConfig() {
+  const response = await fetch(`${API_BASE}/v1/auth/config`);
+  const config = await readJsonResponse(response);
+  if (!response.ok) throw new Error(config.error?.message || '인증 설정을 읽지 못했습니다.');
+  return config;
+}
+
+async function refreshSession() {
+  const config = await authConfig();
+  const response = await fetch(`${config.supabase_url}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { apikey: config.supabase_anon_key, 'content-type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken })
+  });
+  const tokens = await readJsonResponse(response);
+  if (!response.ok || !tokens.access_token || !tokens.refresh_token) throw new Error('로그인 세션이 만료되었습니다. Google 계정을 다시 연결해 주세요.');
+  accessToken = tokens.access_token;
+  refreshToken = tokens.refresh_token;
+  expiresAt = Number(tokens.expires_at || 0);
+  await chrome.storage.local.set({ accessToken, refreshToken, expiresAt });
+}
+
+async function ensureSession() {
+  if (!accessToken || !refreshToken) throw new Error('먼저 Google 계정을 연결해 주세요.');
+  if (expiresAt && expiresAt > Math.floor(Date.now() / 1000) + 30) return;
+  try {
+    await refreshSession();
+  } catch (error) {
+    accessToken = null;
+    refreshToken = null;
+    expiresAt = 0;
+    await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
+    updateConnectionUi();
+    throw error;
+  }
 }
 
 async function connectAccount() {
   connectButton.disabled = true;
   setStatus('Google 로그인 창을 여는 중...');
   try {
-    const configResponse = await fetch(`${API_BASE}/v1/auth/config`);
-    const config = await readJsonResponse(configResponse);
-    if (!configResponse.ok) throw new Error(config.error?.message || '인증 설정을 읽지 못했습니다.');
+    const config = await authConfig();
     const redirectTo = chrome.identity.getRedirectURL('auth/callback');
     const authorizeUrl = new URL(`${config.supabase_url}/auth/v1/authorize`);
     authorizeUrl.searchParams.set('provider', 'google');
@@ -48,10 +92,12 @@ async function connectAccount() {
     const callback = new URL(callbackUrl);
     const callbackError = callback.searchParams.get('error_description') || callback.hash.match(/error_description=([^&]+)/)?.[1];
     if (callbackError) throw new Error(decodeURIComponent(callbackError.replace(/\+/g, ' ')));
-    const token = new URLSearchParams(callback.hash.replace(/^#/, '')).get('access_token');
-    if (!token) throw new Error('로그인 토큰을 받지 못했습니다. Supabase Redirect URL 설정을 확인해 주세요.');
-    accessToken = token;
-    await chrome.storage.local.set({ accessToken });
+    const tokens = new URLSearchParams(callback.hash.replace(/^#/, ''));
+    accessToken = tokens.get('access_token');
+    refreshToken = tokens.get('refresh_token');
+    expiresAt = Number(tokens.get('expires_at') || 0);
+    if (!accessToken || !refreshToken) throw new Error('로그인 토큰을 받지 못했습니다. Supabase Redirect URL 설정을 확인해 주세요.');
+    await chrome.storage.local.set({ accessToken, refreshToken, expiresAt });
     updateConnectionUi();
     setStatus('계정이 연결되었습니다. 이제 Keep할 수 있습니다.');
   } catch (error) {
@@ -331,7 +377,7 @@ async function keepCurrentPage() {
   keepButton.disabled = true;
   setStatus('페이지 증거를 수집하는 중...');
   try {
-    if (!accessToken) throw new Error('먼저 Google 계정을 연결해 주세요.');
+    await ensureSession();
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const tabs = activeTab && /^https?:\/\//i.test(activeTab.url || '')
       ? [activeTab]
@@ -375,7 +421,9 @@ keepButton.addEventListener('click', keepCurrentPage);
 connectButton.addEventListener('click', connectAccount);
 disconnectButton.addEventListener('click', async () => {
   accessToken = null;
-  await chrome.storage.local.remove('accessToken');
+  refreshToken = null;
+  expiresAt = 0;
+  await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
   updateConnectionUi();
   setStatus('계정 연결을 해제했습니다.');
 });
