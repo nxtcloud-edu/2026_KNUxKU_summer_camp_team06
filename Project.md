@@ -25,7 +25,6 @@ SNS에서 사용자가 저장한 정보성 게시물을 다시 확인하고 실�
 
 ### 후속 범위
 
-- 사용자 인증과 사용자별 DB 저장소
 - Planning Agent, Quest/Todo, Calendar
 - 마감 알림과 반복 확인
 - YouTube 자막, X 등 추가 플랫폼
@@ -63,13 +62,12 @@ links, platform, category, status, needs_review
 | 오케스트레이션·계약 | Intake 상태, 공용 모델, Agent 연결 | services/keep-web/server/workflow.js, shared/contracts.js |
 | 플랫폼 수집 | Instagram·Threads의 페이지 증거를 추출 | services/keep-web/server/agents/ |
 | 정규화 | 제목·본문·마감일·분류를 표준 필드로 변환 | services/keep-web/server/agents/normalization-agent.js |
-| 적격성·우선순위 | 사용자 프로필과 조건을 비교 | 기존 Python stub, 후속 Node Agent |
-| 계획·실행 | 확인된 항목의 Quest/Todo·캘린더 계획 | 기존 Python stub, 후속 Node Agent |
+| 적격성·우선순위 | 사용자 프로필과 조건을 비교 | src/eligibility_agent.py, src/feasibility_agent.py, src/ranking_agent.py |
+| 계획·실행 | 확인된 항목의 Quest/Todo·캘린더 계획 | src/execution/, src/planning_agent.py, src/calendar_agent.py |
 | Web·Extension | HTTP API 화면과 Keep 경험 | services/keep-web/web/, extension/ |
 
-기존 Python src/extraction_agent.py, src/normalization_agent.py, data/*,
-scripts/run_pipeline.py는 참고·전환 기간의 기존 구현으로 보존합니다. 새 실행 경로는
-services/keep-web에서 시작하며, 두 런타임의 계약을 팀 합의 없이 따로 확장하지 않습니다.
+Node KEEP:ON은 사용자 Keep과 개인 저장소의 진입점이며, Python Agent는 정규화된 데이터의
+추천·실행 흐름을 담당합니다. 두 런타임의 계약을 팀 합의 없이 따로 확장하지 않습니다.
 
 ## 6. 절대 규칙
 

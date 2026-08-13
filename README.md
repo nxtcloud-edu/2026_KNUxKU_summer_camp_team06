@@ -14,7 +14,8 @@
 - 플랫폼별 Extraction Agent (현재 Instagram·Threads)
 - Competition / Support / Benefit Normalization Agent
 - HTTP API를 소비하는 웹 대시보드
-- 이후 사용자 확인 후 Planning·Calendar·Notification Agent 확장
+- Supabase 인증·사용자별 저장(RLS)과 Gemini 정규화
+- 사용자 확인 후 Python 실행·추천 Agent와 Calendar/Notification 확장
 
 자동 수집·대량 크롤링은 하지 않습니다. 사용자가 저장을 요청한 현재 페이지의 증거만 처리합니다.
 릴스와 동영상은 영상을 분석하지 않고 게시물의 캡션·본문과 링크를 수집합니다.
@@ -103,35 +104,38 @@ Chrome에서 `chrome://extensions`를 열고 개발자 모드를 켠 뒤
 - 새 Agent와 fixture에는 테스트를 함께 추가하고 `npm test`를 통과시킵니다.
 - 공용 계약과 workflow 변경은 팀 합의 후 별도 브랜치 PR로 제출합니다.
 
-## 기존 Python 코드와의 관계
+## Python Agent와 KEEP:ON의 관계
 
-기존 레포의 Python 구현은 전환 기간 동안 보존합니다.
+레포의 Python Agent는 단순 stub이 아니라 별도 기능을 구현하고 있습니다. KEEP:ON Node 서비스는
+사용자가 Keep한 SNS 게시물을 개인 저장소에 넣는 진입점이고, Python Agent는 이 저장 데이터를
+바탕으로 적격성·추천·실행 계획을 담당합니다.
 
-- 실제 구현이 있는 `src/extraction_agent.py`, `src/normalization_agent.py`,
-  `data/*`, `scripts/run_pipeline.py`는 이번 전환에서 수정하지 않습니다.
-- 비어 있는 초기 stub과 프로젝트 문서는 새 구조에 맞춰 교체할 수 있습니다.
-- 기존 Python의 `SavedContext`는 Node의 `PageEvidencePayload`를 입력으로 받는 계약으로
-  매핑하고, `NormalizationResult`는 Node Normalization 결과와 필드를 맞춥니다.
-- Python과 Node에 서로 다른 규칙을 두지 않도록 최종 공용 필드는 팀 합의 후 한 곳을 기준으로
-  확정합니다.
+- `src/extraction_agent.py`, `src/normalization_agent.py`: 링크·텍스트·이미지·PDF 처리와 조건 정규화
+- `src/eligibility_agent.py`, `src/feasibility_agent.py`, `src/ranking_agent.py`: 개인화 적격성·추천
+- `src/execution/`: 실행 계획, Todo, 캘린더, 알림 흐름
+- `app/execution_demo_app.py`: Streamlit 실행 Agent 데모
+
+공통 데이터 계약은 Node의 `Opportunity`와 Python의 `SavedContext`·`NormalizationResult` 사이에서
+명시적으로 매핑합니다. 한 런타임이 다른 런타임의 파일을 직접 수정하지 않습니다.
 
 ## 현재 단계와 다음 단계
 
-현재 `services/keep-web`은 AI API 키 없이도 재현 가능한 로컬 수직 슬라이스입니다.
-정규화는 결정적 규칙으로 동작하고 저장소는 메모리 기반이라 서버를 재시작하면 데이터가
-사라집니다.
+현재 `services/keep-web`은 Gemini 정규화, Supabase Google 로그인, 사용자별 RLS 저장을 포함한
+로컬 수직 슬라이스입니다. API 키와 service-role 키는 서버 `.env`에만 둡니다.
 
 다음 단계에서 사용자 인증·DB·실제 Agent 실행 런타임을 붙입니다.
 
 1. 공용 계약을 `src/models.py`와 `shared/contracts.js` 사이에서 확정
-2. 플랫폼별 Extraction Agent를 폴더별로 분리
-3. Supabase 또는 운영 DB와 사용자별 저장소 연결
-4. 사용자 확인 이후 Planning·Calendar·Notification 연결
+2. 링크·텍스트·사진·PDF 직접 입력 API와 Web 화면 연결
+3. Python Agent가 사용할 공용 Opportunity 계약 확정
+4. 사용자 확인 이후 Python 실행 Agent와 Calendar·Notification 연결
 
 ## 문서
 
 - [`Project.md`](./Project.md): 제품 범위와 협업 규칙
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md): 실행 아키텍처와 계약
 - [`docs/plan_b.md`](./docs/plan_b.md): 기존 Python 데이터 파이프라인 참고 문서
+- [`docs/plan_c.md`](./docs/plan_c.md): 개인화 추천·적격성 Agent 문서
+- [`docs/plan_d.md`](./docs/plan_d.md): 실행·Todo·Calendar Agent 문서
 - [`services/keep-web/README.md`](./services/keep-web/README.md): Extension·API 로컬 실행 안내
 - [`services/keep-web/docs/technical-design.md`](./services/keep-web/docs/technical-design.md): 상세 설계

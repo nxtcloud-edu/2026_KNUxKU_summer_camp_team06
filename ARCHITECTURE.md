@@ -1,8 +1,8 @@
 # KEEP:ON — 실행 아키텍처
 
 이 문서는 README와 Project.md의 제품 범위를 코드와 API 경계로 구체화합니다.
-현재 기준의 새 실행 경로는 services/keep-web이며, 기존 Python 구현은 전환 기간 동안
-보존합니다. main에 직접 병합하지 않고 작업 브랜치와 PR로 통합합니다.
+`services/keep-web`은 사용자 Keep·인증·저장 경로를, `src/`는 추천·실행 Agent 경로를
+담당합니다. 두 경로는 공용 Opportunity 계약을 통해 연결하며, main에는 PR로만 통합합니다.
 
 ## 1. 전체 흐름
 
@@ -20,7 +20,8 @@ flowchart TD
   S --> API[HTTP API]
   API --> F[Web Dashboard]
   F --> C{사용자 확인}
-  C --> D[Planning / Calendar / Notification]
+  C --> X[Python 실행·추천 Agent]
+  X --> D[Planning / Calendar / Notification]
 ~~~
 
 ### 처리 원칙
@@ -41,7 +42,7 @@ flowchart TD
 | server/agents/platform-agents.js | Instagram·Threads Extraction adapter |
 | server/agents/normalization-agent.js | Competition·Support·Benefit·마감일 정규화 |
 | server/validation.js | 저장 전 결정적 검증 |
-| server/store.js | 현재 로컬 메모리 저장소와 canonical URL 중복 방지 |
+| server/store.js | Supabase 사용자별 저장소와 canonical URL 중복 방지 |
 | shared/contracts.js | PageEvidencePayload, 상태, 플랫폼, 분류 계약 |
 | web/ | API 소비용 기본 대시보드 |
 
@@ -127,15 +128,18 @@ UNSUPPORTED, 접근 실패·계약 오류는 FAILED 또는 명시적 오류 코�
 사용자 취소와 중복 URL은 별도 상태·갱신 규칙으로 처리하며, 같은 사용자와 canonical URL의
 중복 카드를 만들지 않습니다.
 
-## 7. 기존 Python과의 연결
+## 7. Python Agent와의 연결
 
-기존 Python 파일은 현재 레포의 실제 구현이므로 수정하지 않습니다.
+Python Agent는 사용자 프로필 기반 적격성·추천·실행 흐름을 구현합니다. Node에서 확인된
+Opportunity만 Python Agent의 입력으로 전달하며, 사용자의 명시적 선택 전에는 실행 계획을
+자동으로 만들지 않습니다.
 
 | 기존 Python | Node 전환 계약 |
 |---|---|
 | src/extraction_agent.py의 SavedContext | PageEvidencePayload와 입력 필드 매핑 |
 | src/normalization_agent.py의 NormalizationResult | Node Normalization 결과 |
-| src/models.py의 공용 모델 초안 | 최종 공용 계약 확정 시 참조 |
+| src/eligibility_agent.py, src/feasibility_agent.py, src/ranking_agent.py | 조건 기반 적격성·추천 |
+| src/execution/ | 계획·Todo·Calendar·Notification 실행 |
 | data/opportunities.json | Node fixture·통합 테스트의 참고 데이터 |
 | scripts/run_pipeline.py | Python 레거시 파이프라인 검증 |
 
