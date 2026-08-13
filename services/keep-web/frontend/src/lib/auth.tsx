@@ -45,7 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (code) {
         const { error } = await client.auth.exchangeCodeForSession(code);
         if (error) throw error;
-        window.history.replaceState({}, document.title, window.location.pathname);
+        // OAuth 콜백은 세션 교환만 위한 내부 경로다. 로그인 완료 후에는
+        // 사용자가 콜백 URL이나 빈 라우트를 보지 않도록 홈으로 정리한다.
+        window.history.replaceState({}, document.title, '/');
       }
       const { data } = await client.auth.getSession();
       if (live) setSession(data.session);
