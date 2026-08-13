@@ -57,8 +57,44 @@ class EligibilityCondition(BaseModel):
     span: tuple[int, int]  # raw_text 내 (start, end) 문자 위치
 
 
+class ContentCategory(str, Enum):
+    """사용자가 저장하는 건 지원사업만이 아니다 (예: 인스타 정보성 게시물, 행사/티켓
+    공지). 8종 조건 중 뭐가 뽑혔는지로 자동 분류한다 — 별도 분류기 없이, 이미 하는
+    추출 작업의 부산물로 판단한다.
+
+    - OPPORTUNITY: 개인 자격조건(나이/지역/신분/소득/중복/병역) 있음 → C의 적격 판정 필요
+    - TIME_SENSITIVE_INFO: 자격조건은 없지만 마감/기간은 있음 (예: 행사 티켓 판매기간)
+      → C의 판정은 불필요, D의 일정 알림 대상
+    - GENERAL_INFO: 조건도 마감도 없음 (예: 툴 소개, 팁) → 그냥 저장, 판정/마감 없이
+      "해볼래?" 형태의 제안 대상
+    """
+
+    OPPORTUNITY = "opportunity"
+    TIME_SENSITIVE_INFO = "time_sensitive_info"
+    GENERAL_INFO = "general_info"
+
+
+_PERSONAL_ELIGIBILITY_TYPES = {
+    ConditionType.AGE,
+    ConditionType.REGION,
+    ConditionType.STATUS,
+    ConditionType.INCOME,
+    ConditionType.DUPLICATE,
+    ConditionType.MILITARY,
+}
+
+
+def _classify_content(conditions: list[EligibilityCondition]) -> ContentCategory:
+    if any(c.type in _PERSONAL_ELIGIBILITY_TYPES for c in conditions):
+        return ContentCategory.OPPORTUNITY
+    if any(c.type == ConditionType.PERIOD for c in conditions):
+        return ContentCategory.TIME_SENSITIVE_INFO
+    return ContentCategory.GENERAL_INFO
+
+
 class NormalizationResult(BaseModel):
     opportunity_id: str
+    content_category: Optional[ContentCategory] = None  # status=failed면 분류 불가로 None
     conditions: list[EligibilityCondition] = []
     status: Literal["ok", "partial", "failed"]
     notes: Optional[str] = None
@@ -291,6 +327,7 @@ def normalize(
     except Exception as e:  # noqa: BLE001 - 외부(LLM) 경계, 실패를 status로 표현 (R3)
         return NormalizationResult(
             opportunity_id=opportunity_id,
+            content_category=_classify_content(conditions) if conditions else None,
             conditions=conditions,
             status="partial" if conditions else "failed",
             notes=f"LLM 추출 실패: {e}",
@@ -307,18 +344,32 @@ def normalize(
         deduped.append(c)
     conditions = deduped
 
-    if not conditions:
+    category = _classify_content(conditions)
+
+    # 개인 자격조건이 없으면(TIME_SENSITIVE_INFO/GENERAL_INFO) "조건을 못 찾음"이 아니라
+    # "애초에 자격조건이 없는 콘텐츠로 정상 분류됨"이다 — status를 partial로 왜곡하지 않는다.
+    if category == ContentCategory.GENERAL_INFO:
         return NormalizationResult(
             opportunity_id=opportunity_id,
+            content_category=category,
             conditions=[],
-            status="partial",
-            notes="자격 조건을 하나도 찾지 못함",
+            status="ok",
+            notes="지원 자격이나 마감 조건이 없음 — 지원사업이 아닌 정보성 콘텐츠로 분류됨 (C의 적격 판정 불필요)",
+        )
+    if category == ContentCategory.TIME_SENSITIVE_INFO:
+        return NormalizationResult(
+            opportunity_id=opportunity_id,
+            content_category=category,
+            conditions=conditions,
+            status="ok",
+            notes="개인 자격조건은 없지만 마감/기간이 있음 — C의 판정은 불필요, D의 일정 알림 대상",
         )
 
     status: Literal["ok", "partial", "failed"] = "partial" if dropped_count else "ok"
     notes = f"근거 검증 실패로 {dropped_count}건 제외됨" if dropped_count else None
     return NormalizationResult(
         opportunity_id=opportunity_id,
+        content_category=category,
         conditions=conditions,
         status=status,
         notes=notes,

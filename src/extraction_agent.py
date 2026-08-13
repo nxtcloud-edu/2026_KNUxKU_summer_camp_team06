@@ -134,6 +134,9 @@ def extract_from_link(url: str) -> SavedContext:
         )
 
     text = _clean_html_to_text(resp.text)
+    soup = BeautifulSoup(resp.text, "html.parser")
+    title = soup.title.string.strip() if soup.title and soup.title.string else None
+
     if not text:
         return SavedContext(
             source_type=SourceType.LINK,
@@ -142,8 +145,34 @@ def extract_from_link(url: str) -> SavedContext:
             error_reason="본문 텍스트를 추출하지 못함 (JS 렌더링 페이지 가능성)",
         )
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    title = soup.title.string.strip() if soup.title and soup.title.string else None
+    # Instagram/TikTok 등 JS로 콘텐츠를 그리는 SPA는 서버가 <title>만 채운 빈 껍데기
+    # HTML을 주거나(예: "Instagram" 한 단어), 로그인 유도 화면만 반환하는 경우가 있다
+    # (예: "Instagram\nInstagram\nLog In\nSign Up" — 실제 테스트로 확인함, 200자
+    # 미만인데 "Log In"/"Sign Up" 텍스트만 있으면 진짜 본문이 아니라 로그인월이다).
+    # status=ok로 잘못 표시하면 R3 위반이므로 명시적으로 걸러내 실패 처리하고
+    # 스크린샷 업로드를 유도한다 (R6와 같은 원칙 — HTTP 401/403이 아니어도 실질적으로
+    # 로그인 없인 본문을 못 얻는 경우가 있다).
+    _MIN_MEANINGFUL_TEXT_LEN = 20
+    _LOGIN_WALL_MARKERS = ("Log In", "Log in", "Sign Up", "Sign up", "로그인이 필요", "로그인 후 이용")
+
+    is_placeholder_only = len(text) < _MIN_MEANINGFUL_TEXT_LEN or (
+        title is not None and text.strip() == title.strip()
+    )
+    looks_like_login_wall = len(text) < 200 and any(m in text for m in _LOGIN_WALL_MARKERS)
+
+    if is_placeholder_only or looks_like_login_wall:
+        reason = (
+            "로그인이 필요한 페이지로 추정(본문 대신 로그인 유도 문구만 반환됨)"
+            if looks_like_login_wall
+            else "페이지 제목만 반환됨 — JS 렌더링 SPA로 추정 (예: Instagram/TikTok)"
+        )
+        return SavedContext(
+            source_type=SourceType.LINK,
+            source_value=url,
+            title=title,
+            status=ExtractionStatus.FAILED,
+            error_reason=f"{reason}. 스크린샷 업로드를 사용자에게 요청하세요.",
+        )
 
     return SavedContext(
         source_type=SourceType.LINK,

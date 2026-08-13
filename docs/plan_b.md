@@ -34,10 +34,17 @@
 ### 4. 최소 통합 테스트 — ✅ 완료
 - `scripts/run_pipeline.py`로 20건 전체 검증, 결과 `data/normalization_results.json`으로 저장
 
+### 5. content_category 분류 추가 — ✅ 완료
+- 실제 테스트로 발견: 사용자가 저장하는 건 지원사업만이 아니다 (인스타 정보성 글, 행사 티켓 공지 등)
+- `normalize()`가 `opportunity`/`time_sensitive_info`/`general_info` 3종으로 자동 분류 (별도 분류기 없이 8종 조건 추출의 부산물로 판단)
+- Instagram/TikTok처럼 로그인 없인 본문을 못 주는 SPA를 감지해 실패 처리하는 로직도 `extraction_agent.py`에 추가 (겉보기엔 200 OK인데 실제로는 로그인 유도 문구만 있는 경우까지 커버)
+- 상세 내용/라우팅 규칙: `ARCHITECTURE.md` 1-1절
+
 ## Day 1 저녁 / Day 2 오전 — C, D와 통합 (다음 작업)
 
 - [ ] C에게 `NormalizationResult` 샘플 20개 전달, C의 `eligibility_agent.py`가 기대하는 입력과 실제 출력이 맞는지 맞춰보기 — **깃허브 공유는 됐지만 팀원 간 코드 리뷰/동기화는 아직 안 된 상태이므로 별도로 알려야 함**
-- [ ] A와 `src/models.py`에 스키마 이관 논의 (지금 draft로 각 파일 상단에 있는 `SavedContext`, `NormalizationResult` 등을 공식 스키마로 확정) — FILE/EXTENSION source type도 함께 논의
+- [ ] **A/D에게 content_category 라우팅 필요성 전달** (최우선) — Supervisor가 `opportunity`만 C로 보내고 나머지는 D로 바로 보내야 함. D의 planning_agent도 "마감 없는 실행 제안"을 다룰 수 있어야 함 — 지금 D 쪽 stub엔 이 개념이 전혀 없으므로 설계 논의 필요
+- [ ] A와 `src/models.py`에 스키마 이관 논의 (지금 draft로 각 파일 상단에 있는 `SavedContext`, `NormalizationResult` 등을 공식 스키마로 확정) — FILE/EXTENSION source type, content_category 모두 포함해서 논의
 - [ ] status가 `partial`/`failed`인 케이스를 C/D/E가 UI에서 어떻게 다뤄야 하는지 합의 (예: `failed`면 사용자에게 재입력 요청)
 - [ ] `docs/personas.md`에서 발견한 온보딩 소득구간 설계 이슈(퍼센트 세분화 필요) A/C와 논의
 
