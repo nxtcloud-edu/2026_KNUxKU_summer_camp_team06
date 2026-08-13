@@ -61,9 +61,9 @@ function App() {
         {/* 저장 예시 마퀴 */}
         <section id="examples" className="pb-24">
           <SectionHeading
-            eyebrow="Threads · Instagram · 카카오톡"
+            eyebrow="Save from anywhere"
             title="이런 거 저장해두고 다시 안 보시죠?"
-            description="공모전, 지원사업, 서포터즈부터 정보성 게시물, 마감 있는 이벤트까지 — 종류는 달라도 KEEP:ON은 저장한 순간 뭐가 다른지 구분합니다."
+            description="공모전, 지원사업, 서포터즈부터 정보성 게시물, 마감 있는 이벤트까지 — 어디서 저장했든 KEEP:ON은 저장한 순간 뭐가 다른지 구분합니다."
           />
           <div className="mt-10">
             <CapturedExamplesMarquee />

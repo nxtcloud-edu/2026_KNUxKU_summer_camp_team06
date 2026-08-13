@@ -1,46 +1,40 @@
-import { ArrowRight, Camera, MessageCircle } from 'lucide-react'
+import { Code2, CreditCard, Home, MessagesSquare } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Marquee } from '@/components/ui/3d-testimonails'
-import {
-  capturedExamples,
-  categoryColor,
-  categoryLabel,
-  type CapturedExample,
-} from '@/data/captured-examples'
+import { PlatformIcon, platformLabel } from '@/components/platform-icon'
+import { capturedExamples, type CapturedExample, type CoverTheme } from '@/data/captured-examples'
 
-const platformIcon = {
-  threads: MessageCircle,
-  instagram: Camera,
-  kakaotalk: MessageCircle,
-} as const
+// 실제 게시물 원문 스크린샷은 못 쓴다(로그인월/자동수집 정책 문제, R6) — 대신
+// 콘텐츠 성격에 맞는 그라데이션 커버로 색감을 준다.
+const coverTheme: Record<CoverTheme, { className: string; Icon: typeof Home }> = {
+  house: { className: 'from-amber-200 via-orange-300 to-rose-300', Icon: Home },
+  code: { className: 'from-sky-300 via-indigo-300 to-violet-400', Icon: Code2 },
+  card: { className: 'from-emerald-200 via-teal-300 to-cyan-400', Icon: CreditCard },
+  chat: { className: 'from-fuchsia-200 via-pink-300 to-rose-400', Icon: MessagesSquare }
+}
 
-const platformLabel = {
-  threads: 'Threads',
-  instagram: 'Instagram',
-  kakaotalk: '카카오톡',
-} as const
-
-function CapturedCard({ platform, handle, snippet, category, keepOnNote }: CapturedExample) {
-  const Icon = platformIcon[platform]
+function CapturedCard({ platform, handle, snippet, keepOnNote, cover }: CapturedExample) {
+  const theme = cover ? coverTheme[cover] : null
   return (
-    <Card className="w-72">
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Icon className="size-3.5" />
-            <span>{platformLabel[platform]}</span>
-            <span className="text-muted-foreground/60">·</span>
-            <span>{handle}</span>
-          </div>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${categoryColor[category]}`}
-          >
-            {categoryLabel[category]}
-          </span>
+    <Card className="w-72 overflow-hidden py-0">
+      {theme && (
+        <div className={`flex h-24 items-center justify-center bg-gradient-to-br ${theme.className}`}>
+          <theme.Icon className="size-8 text-white/90" strokeWidth={1.5} />
         </div>
-        <blockquote className="text-sm text-foreground/90">{snippet}</blockquote>
-        <div className="flex items-start gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
-          <ArrowRight className="mt-0.5 size-3.5 shrink-0" />
+      )}
+      <CardContent className="space-y-3 p-5">
+        <div className="flex items-center gap-2">
+          <PlatformIcon platform={platform} className="size-8" />
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-medium text-foreground">{handle}</span>
+            <span className="text-[11px] text-muted-foreground">{platformLabel[platform]}</span>
+          </div>
+        </div>
+        <blockquote className="text-sm leading-relaxed text-foreground/90">{snippet}</blockquote>
+        <div className="flex items-start gap-1.5 border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
+          <span aria-hidden className="mt-0.5 text-primary">
+            ↳
+          </span>
           <span>{keepOnNote}</span>
         </div>
       </CardContent>
@@ -54,18 +48,18 @@ export function CapturedExamplesMarquee() {
   const secondRow = capturedExamples.slice(half)
 
   return (
-    <div className="relative flex w-full flex-col overflow-hidden [perspective:400px]">
+    <div className="relative flex w-full flex-col gap-4 overflow-hidden [perspective:400px]">
       <div
         style={{
           transform: 'rotateX(10deg) rotateZ(-2deg)',
         }}
       >
-        <Marquee pauseOnHover className="[--duration:35s]">
+        <Marquee pauseOnHover className="[--duration:38s]">
           {firstRow.map((item, i) => (
             <CapturedCard key={i} {...item} />
           ))}
         </Marquee>
-        <Marquee pauseOnHover reverse className="[--duration:35s]">
+        <Marquee pauseOnHover reverse className="[--duration:38s]">
           {secondRow.map((item, i) => (
             <CapturedCard key={i} {...item} />
           ))}
