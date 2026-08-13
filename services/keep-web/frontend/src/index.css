@@ -207,6 +207,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .page-intro { padding: 18px 0 42px; }
 .page-intro.narrow { max-width: 680px; }
 .library-toolbar { display: flex; gap: 10px; }
+.upload-dropzone { min-height: 104px; display: flex; align-items: center; gap: 16px; margin: -8px 0 22px; padding: 18px 20px; border: 1px dashed #b9bec6; border-radius: 20px; background: #fafafa; color: var(--ink); cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms var(--ease-out); }
+.upload-dropzone:hover, .upload-dropzone:focus-within { border-color: var(--primary); background: #f4faff; transform: translateY(-2px); }.upload-dropzone input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }.upload-icon { width: 44px; height: 44px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--primary); color: var(--on-primary); }.upload-dropzone > span:nth-child(2) { min-width: 0; }.upload-dropzone strong, .upload-dropzone small { display: block; }.upload-dropzone strong { font-size: 14px; font-weight: 650; }.upload-dropzone small { margin-top: 5px; color: rgba(0,0,0,.58); font-size: 12px; line-height: 1.4; }.upload-action { margin-left: auto; padding: 10px 14px; border-radius: 999px; background: var(--background); box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); font-size: 12px; font-weight: 650; white-space: nowrap; }.upload-queue { display: flex; flex-wrap: wrap; gap: 8px; margin: -10px 0 20px; }.upload-queue > span { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 8px 10px; border-radius: 999px; background: #edf5fb; color: var(--ink); font-size: 11px; }.upload-queue svg { color: var(--accent-color); }.upload-queue small { color: rgba(0,0,0,.54); font-size: 10px; }
 .search-field { flex: 1; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
 .search-field input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
 .search-field input::placeholder { color: rgba(0,0,0,.48); }
@@ -458,6 +460,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .section-heading { margin-top: 40px; }
   .page-intro { padding-top: 8px; }
   .library-toolbar { position: sticky; top: 64px; z-index: 20; padding: 8px 0; background: var(--paper); }
+  .upload-dropzone { align-items: flex-start; min-height: 126px; margin-top: -2px; padding: 16px; }.upload-dropzone small { font-size: 11px; }.upload-action { align-self: flex-end; margin-left: -52px; padding: 8px 10px; font-size: 10px; }
   .filter-button { min-width: 48px; font-size: 0; }
   .opportunity-row { min-height: 142px; grid-template-columns: 1fr auto; gap: 10px; padding: 20px 18px 20px 26px; }
   .row-arrow { display: none; }

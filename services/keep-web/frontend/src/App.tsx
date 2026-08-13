@@ -21,6 +21,7 @@ import {
   Settings2,
   Sparkles,
   Target,
+  Upload,
   X,
 } from 'lucide-react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
@@ -76,7 +77,9 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
 function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
+  const [uploads, setUploads] = useState<string[]>([]);
   const filters = ['전체', '마감 임박', '확인 필요', '참여 결정'];
+  const addFiles = (files: FileList | File[]) => setUploads((current) => [...current, ...Array.from(files).map((file) => file.name)]);
   const filtered = useMemo(() => opportunities.filter((item) => {
     const matchesQuery = [item.title, item.organization, item.category].join(' ').toLowerCase().includes(query.toLowerCase());
     const matchesFilter = filter === '전체'
@@ -93,6 +96,13 @@ function SavedPage() {
         <h2>저장한 정보가<br />기회가 되는 곳</h2>
         <p>Instagram과 Threads에서 Keep한 정보만 모았어요. 하나씩 열어보고 결정하면 됩니다.</p>
       </section>
+      <label className="upload-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(event.dataTransfer.files); }}>
+        <input type="file" multiple accept="image/*,.pdf,.txt" onChange={(event) => event.target.files && addFiles(event.target.files)} />
+        <span className="upload-icon"><Upload size={20} /></span>
+        <span><strong>저장한 파일을 여기로 끌어다 놓으세요</strong><small>이미지, PDF, 텍스트 파일을 추가하면 기회 정보로 정리해드려요.</small></span>
+        <span className="upload-action">파일 선택</span>
+      </label>
+      {uploads.length > 0 && <div className="upload-queue" aria-live="polite">{uploads.map((file, index) => <span key={`${file}-${index}`}><Check size={14} />{file}<small>분석 대기</small></span>)}</div>}
       <div className="library-toolbar">
         <label className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목, 기관, 분야 검색" /></label>
         <button className="filter-button" type="button"><Filter size={17} />정렬</button>
