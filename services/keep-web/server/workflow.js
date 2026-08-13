@@ -57,6 +57,13 @@ export async function processIntake(store, intakeId, session) {
     const opportunity = duplicate
       ? await store.updateOpportunity(duplicate.id, opportunityData, userId, accessToken)
       : await store.createOpportunity(opportunityData, userId, accessToken);
+    await store.upsertNormalizedOpportunity({
+      opportunity_id: opportunity.id,
+      content_category: normalized.content_category || null,
+      conditions: normalized.conditions || [],
+      status: normalized.status === 'failed' ? 'failed' : normalized.status === 'partial' ? 'partial' : 'ok',
+      notes: normalized.notes || null
+    }, userId, accessToken);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, {
       status: validation.ok ? 'READY_FOR_REVIEW' : 'NEEDS_REVIEW',

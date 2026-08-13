@@ -53,7 +53,9 @@ async function readJson(request) {
   }
 }
 
-async function runAgent(command, payload, userId) {
+async function runAgent(command, payload, session, store) {
+  const opportunities = await store.listOpportunities(session.userId, session.accessToken);
+  const normalizations = await store.listNormalizedOpportunities(session.userId, session.accessToken);
   const result = await new Promise((resolve, reject) => {
     const projectPython = path.resolve(ROOT, '..', '..', '.venv', 'bin', 'python');
     const python = process.env.AGENT_PYTHON || (existsSync(projectPython) ? projectPython : 'python3');
@@ -69,7 +71,7 @@ async function runAgent(command, payload, userId) {
       if (code !== 0) return reject(Object.assign(new Error(stderr || stdout || 'Agent command failed.'), { statusCode: 422 }));
       try { resolve(JSON.parse(stdout)); } catch { reject(Object.assign(new Error('Agent returned invalid JSON.'), { statusCode: 502 })); }
     });
-    child.stdin.end(JSON.stringify({ command, ...payload, user_id: userId }));
+    child.stdin.end(JSON.stringify({ command, ...payload, user_id: session.userId, opportunities, normalizations }));
   });
   if (result.error) throw Object.assign(new Error(result.error), { statusCode: 422 });
   return result;
@@ -144,22 +146,22 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/dashboard') {
-        sendJson(response, 200, await runAgent('dashboard', await readJson(request), session.userId));
+        sendJson(response, 200, await runAgent('dashboard', await readJson(request), session, keeperStore));
         return;
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/recommendations') {
-        sendJson(response, 200, await runAgent('recommend', await readJson(request), session.userId));
+        sendJson(response, 200, await runAgent('recommend', await readJson(request), session, keeperStore));
         return;
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/evaluate') {
-        sendJson(response, 200, await runAgent('evaluate', await readJson(request), session.userId));
+        sendJson(response, 200, await runAgent('evaluate', await readJson(request), session, keeperStore));
         return;
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/execution') {
-        sendJson(response, 200, await runAgent('execution', await readJson(request), session.userId));
+        sendJson(response, 200, await runAgent('execution', await readJson(request), session, keeperStore));
         return;
       }
 

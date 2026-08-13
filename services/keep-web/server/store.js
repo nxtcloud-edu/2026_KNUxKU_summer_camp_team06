@@ -8,6 +8,7 @@ export class InMemoryKeeperStore {
   constructor() {
     this.intakes = new Map();
     this.opportunities = new Map();
+    this.normalizations = new Map();
     this.canonicalToOpportunity = new Map();
     this.cancelledIntakes = new Set();
     this.sequence = 0;
@@ -100,6 +101,18 @@ export class InMemoryKeeperStore {
     opportunity.updated_at = opportunity.deleted_at;
     this.canonicalToOpportunity.delete(userId + ':' + opportunity.canonical_url);
     return true;
+  }
+
+  upsertNormalizedOpportunity(data, userId = 'local-test-user') {
+    const key = userId + ':' + data.opportunity_id;
+    const current = this.normalizations.get(key);
+    const row = { id: current?.id || `norm_local_${this.sequence + 1}`, ...current, ...data, user_id: userId, created_at: current?.created_at || now(), updated_at: now() };
+    this.normalizations.set(key, row);
+    return row;
+  }
+
+  listNormalizedOpportunities(userId = 'local-test-user') {
+    return [...this.normalizations.values()].filter((item) => item.user_id === userId);
   }
 }
 
@@ -229,5 +242,19 @@ export class SupabaseKeeperStore {
   async deleteOpportunity(id, userId, accessToken) {
     const result = await this.updateOpportunity(id, { status: 'DELETED', deleted_at: now() }, userId, accessToken);
     return Boolean(result);
+  }
+
+  async upsertNormalizedOpportunity(data, userId, accessToken) {
+    const rows = await this.request('normalized_opportunities?on_conflict=user_id,opportunity_id', accessToken, {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=representation',
+      body: { ...data, user_id: userId }
+    });
+    return rows[0] || null;
+  }
+
+  async listNormalizedOpportunities(userId, accessToken) {
+    const query = new URLSearchParams({ select: '*', user_id: 'eq.' + userId, order: 'created_at.desc' });
+    return this.request('normalized_opportunities?' + query, accessToken);
   }
 }
