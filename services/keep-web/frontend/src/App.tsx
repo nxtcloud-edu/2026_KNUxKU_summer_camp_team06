@@ -101,7 +101,9 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
     <Link to={`/saved/${item.id}`} className={`dashboard-opportunity-card accent-${item.accent}`}>
       <span className="opportunity-rank" aria-hidden="true">{rank}</span>
       <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true">
-        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <><span /><i /><b /><em /></>}
+        {item.thumbnailUrl && item.thumbnailKind === 'pdf'
+          ? <iframe src={`${item.thumbnailUrl}#page=1&zoom=page-width`} title="PDF 첫 페이지 미리보기" tabIndex={-1} />
+          : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <><span /><i /><b /><em /></>}
       </div>
       <div className="opportunity-card-copy">
         <div><span>{item.category}</span>{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>

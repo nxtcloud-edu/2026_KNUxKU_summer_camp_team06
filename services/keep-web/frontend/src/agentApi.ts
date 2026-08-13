@@ -51,6 +51,8 @@ export async function createSourceIntake(file: File) {
     payload.source_metadata = {
       object_path: upload.objectPath, original_filename: file.name,
       mime_type: file.type, byte_size: file.size,
+      thumbnail_url: `storage://keeper-uploads/${upload.objectPath}`,
+      thumbnail_kind: type,
     };
   }
   const response = await authorizedFetch('/v1/intakes/source', {

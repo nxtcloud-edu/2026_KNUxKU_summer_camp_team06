@@ -249,7 +249,14 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
       }
 
       if (request.method === 'GET' && url.pathname === '/v1/opportunities') {
-        sendJson(response, 200, { items: await keeperStore.listOpportunities(session.userId, session.accessToken) });
+        const items = await keeperStore.listOpportunities(session.userId, session.accessToken);
+        const visibleItems = typeof keeperStore.createUploadPreviewUrl === 'function'
+          ? await Promise.all(items.map(async (item) => ({
+            ...item,
+            thumbnail_url: await keeperStore.createUploadPreviewUrl(item.thumbnail_url, session.accessToken),
+          })))
+          : items;
+        sendJson(response, 200, { items: visibleItems });
         return;
       }
 

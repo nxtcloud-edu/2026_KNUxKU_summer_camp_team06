@@ -72,6 +72,7 @@ export async function processIntake(store, intakeId, session) {
       evidence: normalized.evidence,
       confidence: normalized.confidence,
       thumbnail_url: extracted.thumbnail_url || intake.source_metadata?.thumbnail_url || null,
+      thumbnail_kind: extracted.thumbnail_kind || intake.source_metadata?.thumbnail_kind || null,
       normalization_method: normalized.normalization_method,
       content_category: normalized.content_category,
       conditions: normalized.conditions,

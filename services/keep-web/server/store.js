@@ -193,6 +193,19 @@ export class SupabaseKeeperStore {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  async createUploadPreviewUrl(value, accessToken) {
+    const prefix = 'storage://keeper-uploads/';
+    if (typeof value !== 'string' || !value.startsWith(prefix)) return value;
+    const objectPath = value.slice(prefix.length);
+    const response = await this.fetchImpl(`${this.url}/storage/v1/object/sign/keeper-uploads/${objectPath}`, {
+      method: 'POST', headers: { apikey: this.anonKey, authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ expiresIn: 3600 })
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const signedPath = body.signedURL || body.signedUrl;
+    return signedPath ? `${this.url}/storage/v1${signedPath}` : null;
+  }
+
   async ensureProfile(userId, displayName, accessToken) {
     const rows = await this.request('profiles?on_conflict=id', accessToken, {
       method: 'POST',
