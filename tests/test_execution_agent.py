@@ -67,7 +67,7 @@ def test_parse_deadline(text, expected):
 
 
 def test_start_creates_tasks_and_calendar(store, ctx):
-    result = ExecutionAgent(store=store).start(ctx)
+    result = ExecutionAgent(store=store, provider="local").start(ctx)
     assert result.goal.deadline == datetime(2026, 8, 28, 23, 59)
     assert len(result.tasks) >= 4
     # '단체' 키워드 → 팀원 모집 Task가 끼워졌는지

@@ -19,6 +19,8 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from dotenv import load_dotenv
+
 from .models import ExecutionContext, Goal, Notification, Plan, Task
 from .modules import (
     CompletionVerifier,
@@ -32,6 +34,8 @@ from .modules import (
 )
 from .store import ExecutionStore
 from .tools import CalendarTool, NotificationTool
+
+load_dotenv()
 
 
 def _default_provider() -> str:
