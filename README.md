@@ -66,3 +66,28 @@ python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증
 `.env`에 `GEMINI_API_KEY`가 없으면 코드가 자동으로 mock으로 폴백하니, 키가 당장 없어도
 실행은 됩니다(단, 실제 LLM 결과는 아님). 인터페이스가 provider 무관하게 설계되어 있어서
 AWS로 최종 확정되면 구현체만 교체하면 됩니다. 자세한 내용은 `docs/plan_b.md` 참고.
+
+## D(실행 에이전트) 파트 — 현재 상태
+
+사용자가 어떤 기회를 "이거 할래"라고 확정한 순간부터 마감까지 실제로 행동·완료하도록 관리하는
+**Execution Agent**. 두 가지 Tool로 동작이 눈에 보인다:
+
+1. **Calendar Tool** — 공고를 Task로 분해하고 마감에서 역산해 날짜에 배치, **웹 캘린더에 등록**
+2. **Notification/Inbox Tool** — "마감 3일 전에 알려줘" → **예약 알림**, 시간이 되면 인박스로 전달.
+   진행이 정체되면 에이전트가 먼저 **개입 알림**을 보냄
+
+- 구현: `src/execution/` 패키지 (모듈 9종 + Tool 2개 + State/DB + Scheduler + Memory).
+  기존 D 스텁 파일(`planning_agent.py` 등)은 이 패키지로 연결되는 얇은 진입점.
+- **로컬 모드 기본** — AWS/LLM 없이 항상 동작. `EXECUTION_LLM_PROVIDER=bedrock` + strands/boto3
+  설치 시 시스템 프롬프트로 Bedrock(Claude)이 직접 도구를 호출(B 파트와 동일한 provider 스위치).
+- 실제 공고 20건 전부 크래시 없이 실행 검증, 핵심 동작 pytest 9종 통과.
+
+**실행 방법**
+```bash
+python -m src.execution.demo             # 콘솔 E2E 데모 (Step 0~4)
+python -m src.execution.render --run     # 데모 + 캘린더/인박스 HTML 생성 (data/execution/execution_view.html)
+streamlit run app/execution_demo_app.py  # 인터랙티브 데모 (발표용)
+pytest tests/test_execution_agent.py     # 테스트
+```
+
+자세한 내용·발표 시나리오는 `docs/plan_d.md` 참고.
