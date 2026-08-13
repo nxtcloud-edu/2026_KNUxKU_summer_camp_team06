@@ -1,0 +1,92 @@
+"""Small JSON boundary between the KEEP:ON web server and C/D Python agents."""
+
+from __future__ import annotations
+
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+
+from src.execution.agent import ExecutionAgent
+from src.execution.models import ExecutionContext, Opportunity, UserProfile
+from src.execution.store import ExecutionStore
+from src.decision_engine import evaluate_opportunity
+from src.c_integration import execution_decision_for_selected
+from src.recommendation_service import ProfileSubmission, RecommendationService
+
+
+def service() -> RecommendationService:
+    return RecommendationService.from_b_files(
+        ROOT / "data" / "opportunities.json",
+        ROOT / "data" / "normalization_results.json",
+    )
+
+
+def profile_for_execution(user_id: str, payload: dict) -> UserProfile:
+    weekly_hours = payload.get("weekly_available_hours")
+    return UserProfile(
+        user_id=user_id,
+        region=payload.get("region"),
+        birth_date=payload.get("birth_date"),
+        status=payload.get("status"),
+        interests=payload.get("interests", []),
+        daily_capacity_hours=(float(weekly_hours) / 7) if weekly_hours else 2.0,
+    )
+
+
+def run(request: dict) -> dict:
+    agent_service = service()
+    command = request["command"]
+    if command == "dashboard":
+        items = agent_service.dashboard(
+            recent_ids=request.get("recent_ids"),
+            popular_ids=request.get("popular_ids"),
+        )
+        return {"items": [item.model_dump(mode="json") for item in items]}
+
+    profile = ProfileSubmission.model_validate(request["profile"])
+    likes = request.get("liked_opportunity_ids", [])
+    feed = agent_service.recommend(profile, likes)
+    if command == "recommend":
+        return feed.model_dump(mode="json")
+
+    opportunity_id = request["opportunity_id"]
+    entry = agent_service._by_id.get(opportunity_id)
+    if entry is None:
+        raise ValueError("Selected opportunity ID is not available to the decision agent.")
+    decision_result = evaluate_opportunity(profile.to_decision_profile(), entry.input)
+    if command == "evaluate":
+        return decision_result.model_dump(mode="json")
+
+    if command == "execution":
+        decision = execution_decision_for_selected(user_id=request["user_id"], result=decision_result)
+        records = json.loads((ROOT / "data" / "opportunities.json").read_text(encoding="utf-8"))["opportunities"]
+        record = next((item for item in records if item["id"] == decision.opportunity_id), None)
+        if record is None:
+            raise ValueError("Selected opportunity ID is not available to the execution agent.")
+        context = ExecutionContext(
+            user=profile_for_execution(request["user_id"], profile.model_dump(mode="json")),
+            opportunity=Opportunity.model_validate(record),
+            decision=decision,
+            now=datetime.now(),
+        )
+        result = ExecutionAgent(store=ExecutionStore(autosave=False), provider="local").start(context)
+        return {
+            "decision": decision.model_dump(mode="json"),
+            "goal": result.goal.model_dump(mode="json"),
+            "tasks": [task.model_dump(mode="json") for task in result.tasks],
+            "events": [event.model_dump(mode="json") for event in result.events],
+            "reminders": [reminder.model_dump(mode="json") for reminder in result.reminders],
+        }
+    raise ValueError("Unsupported agent command.")
+
+
+if __name__ == "__main__":
+    try:
+        print(json.dumps(run(json.load(sys.stdin)), ensure_ascii=False))
+    except Exception as error:
+        print(json.dumps({"error": str(error)}, ensure_ascii=False))
+        raise SystemExit(1)

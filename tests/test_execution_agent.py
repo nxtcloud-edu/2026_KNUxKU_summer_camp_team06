@@ -79,6 +79,17 @@ def test_start_creates_tasks_and_calendar(store, ctx):
     assert result.tasks[-1].due_at.date() == result.goal.deadline.date()
 
 
+def test_start_rejects_ineligible_or_mismatched_decision(store, ctx):
+    ctx.decision.eligible = False
+    with pytest.raises(ValueError, match="Only eligible"):
+        ExecutionAgent(store=store, provider="local").start(ctx)
+
+    ctx.decision.eligible = True
+    ctx.decision.opportunity_id = "another-opportunity"
+    with pytest.raises(ValueError, match="same ID"):
+        ExecutionAgent(store=store, provider="local").start(ctx)
+
+
 # --- Tool 2: 리마인드 예약 + Scheduler 전달 ---------------------------------
 
 

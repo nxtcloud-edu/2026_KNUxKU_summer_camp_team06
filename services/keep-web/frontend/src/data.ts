@@ -18,7 +18,7 @@ export interface Opportunity {
 
 export const opportunities: Opportunity[] = [
   {
-    id: 'aws-ai-challenge',
+    id: 'opp-contest-02',
     title: 'AWS AI Challenge 2026',
     organization: 'Amazon Web Services',
     category: '공모전',
@@ -38,7 +38,7 @@ export const opportunities: Opportunity[] = [
     ],
   },
   {
-    id: 'cloud-campus',
+    id: 'opp-bootcamp-02',
     title: '클라우드 실무 캠퍼스',
     organization: '한국클라우드산업협회',
     category: '교육·훈련',
@@ -56,7 +56,7 @@ export const opportunities: Opportunity[] = [
     ],
   },
   {
-    id: 'youth-rent',
+    id: 'opp-grant-03',
     title: '청년 월세 특별지원',
     organization: '국토교통부',
     category: '지원 정책',
@@ -74,7 +74,7 @@ export const opportunities: Opportunity[] = [
     ],
   },
   {
-    id: 'coss-crew',
+    id: 'opp-supporters-02',
     title: '첨단분야 COSS 서포터즈',
     organization: '첨단분야 혁신융합대학',
     category: '대외활동',

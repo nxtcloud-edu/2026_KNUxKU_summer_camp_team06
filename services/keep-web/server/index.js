@@ -1,5 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validatePageEvidencePayload } from '../shared/contracts.js';
@@ -49,6 +51,28 @@ async function readJson(request) {
   } catch {
     throw Object.assign(new Error('request body must be valid JSON'), { statusCode: 400 });
   }
+}
+
+async function runAgent(command, payload, userId) {
+  const result = await new Promise((resolve, reject) => {
+    const projectPython = path.resolve(ROOT, '..', '..', '.venv', 'bin', 'python');
+    const python = process.env.AGENT_PYTHON || (existsSync(projectPython) ? projectPython : 'python3');
+    const child = spawn(python, [path.join(ROOT, 'server', 'agent-bridge.py')], {
+      cwd: path.resolve(ROOT, '..'), stdio: ['pipe', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) return reject(Object.assign(new Error(stderr || stdout || 'Agent command failed.'), { statusCode: 422 }));
+      try { resolve(JSON.parse(stdout)); } catch { reject(Object.assign(new Error('Agent returned invalid JSON.'), { statusCode: 502 })); }
+    });
+    child.stdin.end(JSON.stringify({ command, ...payload, user_id: userId }));
+  });
+  if (result.error) throw Object.assign(new Error(result.error), { statusCode: 422 });
+  return result;
 }
 
 async function serveStatic(requestPath, response) {
@@ -116,6 +140,26 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
           await keeperStore.ensureProfile(session.userId, session.email ? session.email.split('@')[0] : null, session.accessToken);
         }
         sendJson(response, 200, { user: { id: session.userId, email: session.email } });
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/v1/agent/dashboard') {
+        sendJson(response, 200, await runAgent('dashboard', await readJson(request), session.userId));
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/v1/agent/recommendations') {
+        sendJson(response, 200, await runAgent('recommend', await readJson(request), session.userId));
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/v1/agent/evaluate') {
+        sendJson(response, 200, await runAgent('evaluate', await readJson(request), session.userId));
+        return;
+      }
+
+      if (request.method === 'POST' && url.pathname === '/v1/agent/execution') {
+        sendJson(response, 200, await runAgent('execution', await readJson(request), session.userId));
         return;
       }
 

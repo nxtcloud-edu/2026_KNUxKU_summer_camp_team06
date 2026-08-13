@@ -114,6 +114,12 @@ class ExecutionAgent:
         Goal 생성 → Task 분해 → 마감 역산 Plan → Calendar Tool로 전 일정 등록.
         auto_reminder=True면 마감 기본 리드타임(사용자 설정) 전에 리마인드도 예약한다.
         """
+        if not ctx.decision.eligible:
+            raise ValueError("Only eligible opportunities can start the execution agent.")
+        if ctx.decision.opportunity_id != ctx.opportunity.id:
+            raise ValueError("Eligibility decision and opportunity must have the same ID.")
+        if ctx.decision.user_id != ctx.user.user_id:
+            raise ValueError("Eligibility decision and user must have the same ID.")
         goal = self.goal_manager.create_goal(ctx)
         tasks = self.decomposer.decompose(goal, ctx.opportunity, user=ctx.user)
         plan = self.planner.build_plan(goal, tasks, ctx.now)

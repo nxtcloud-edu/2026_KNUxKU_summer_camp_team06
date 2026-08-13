@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FileText,
   Filter,
   LayoutGrid,
   List,
@@ -24,9 +25,10 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { calendarEvents, opportunities, type Opportunity } from './data';
+import { evaluateOpportunity, loadProfile, saveProfile, startExecution } from './agentApi';
 
 function HomePage() {
   return (
@@ -77,9 +79,20 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
 function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
-  const [uploads, setUploads] = useState<string[]>([]);
+  const [uploads, setUploads] = useState<Array<{ id: string; name: string; preview?: string }>>([]);
+  const [savedFile, setSavedFile] = useState<{ name: string; preview?: string } | null>(null);
   const filters = ['전체', '마감 임박', '확인 필요', '참여 결정'];
-  const addFiles = (files: FileList | File[]) => setUploads((current) => [...current, ...Array.from(files).map((file) => file.name)]);
+  const addFiles = (files: FileList | File[]) => {
+    const added = Array.from(files).map((file, index) => ({
+      id: `${Date.now()}-${index}-${file.name}`,
+      name: file.name,
+      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+    }));
+    if (!added.length) return;
+    setUploads((current) => [...added, ...current]);
+    setSavedFile(added[0]);
+    window.setTimeout(() => setSavedFile(null), 1650);
+  };
   const filtered = useMemo(() => opportunities.filter((item) => {
     const matchesQuery = [item.title, item.organization, item.category].join(' ').toLowerCase().includes(query.toLowerCase());
     const matchesFilter = filter === '전체'
@@ -102,7 +115,7 @@ function SavedPage() {
         <span><strong>저장한 파일을 여기로 끌어다 놓으세요</strong><small>이미지, PDF, 텍스트 파일을 추가하면 기회 정보로 정리해드려요.</small></span>
         <span className="upload-action">파일 선택</span>
       </label>
-      {uploads.length > 0 && <div className="upload-queue" aria-live="polite">{uploads.map((file, index) => <span key={`${file}-${index}`}><Check size={14} />{file}<small>분석 대기</small></span>)}</div>}
+      {uploads.length > 0 && <div className="upload-queue" aria-live="polite">{uploads.map((file) => <span key={file.id}><Check size={14} />{file.name}<small>분석 대기</small></span>)}</div>}
       <div className="library-toolbar">
         <label className="search-field"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목, 기관, 분야 검색" /></label>
         <button className="filter-button" type="button"><Filter size={17} />정렬</button>
@@ -115,6 +128,7 @@ function SavedPage() {
         {filtered.map((item) => <OpportunityRow key={item.id} item={item} />)}
       </div>
       {!filtered.length && <div className="empty-state"><Bookmark size={24} /><strong>조건에 맞는 정보가 없어요</strong><p>다른 검색어나 필터를 선택해 보세요.</p></div>}
+      {savedFile && <div className="upload-save-overlay" role="status" aria-live="polite"><div className="upload-save-card"><div className="upload-save-thumb">{savedFile.preview ? <img src={savedFile.preview} alt="" /> : <FileText size={28} />}</div><div><span><CheckCircle2 size={16} /> 정리함에 저장했어요</span><strong>{savedFile.name}</strong><small>내용을 읽고 기회 정보로 정리하는 중이에요.</small></div></div></div>}
     </div>
   );
 }
@@ -162,12 +176,39 @@ function OpportunityDetailPage() {
           <span className="section-label">YOUR DECISION</span>
           <h3>이 기회,<br />해볼까요?</h3>
           <p>결정하면 마감일까지 필요한 일을 작은 단계로 나눠드려요.</p>
-          <Link to={`/plan/${item.id}`} className="primary-action">이거 할래! <ArrowRight size={17} /></Link>
+          <StartExecutionButton item={item} />
           <a href="https://example.com" target="_blank" rel="noreferrer" className="secondary-action">원문 확인 <ExternalLink size={15} /></a>
         </aside>
       </div>
     </div>
   );
+}
+
+function StartExecutionButton({ item }: { item: Opportunity }) {
+  const navigate = useNavigate();
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+  const [eligibility, setEligibility] = useState<'checking' | 'pass' | 'unknown' | 'fail'>('checking');
+  useEffect(() => {
+    let live = true;
+    evaluateOpportunity(item.id).then((result) => {
+      if (live) setEligibility(result.eligibility.overall);
+    }).catch(() => { if (live) setEligibility('unknown'); });
+    return () => { live = false; };
+  }, [item.id]);
+  const start = async () => {
+    setState('loading');
+    try {
+      const result = await startExecution(item.id, [item.id]);
+      sessionStorage.setItem(`keep-on-execution-${item.id}`, JSON.stringify(result));
+      navigate(`/plan/${item.id}`);
+    } catch (error) {
+      setState('error');
+      setMessage(error instanceof Error ? error.message : '실행 계획을 만들지 못했어요.');
+    }
+  };
+  const label = eligibility === 'checking' ? '조건 확인 중…' : eligibility === 'pass' ? (state === 'loading' ? '계획 만드는 중…' : '이거 할래!') : '추가 조건 확인 필요';
+  return <><button type="button" className="primary-action" onClick={start} disabled={state === 'loading' || eligibility !== 'pass'}>{label} <ArrowRight size={17} /></button>{eligibility !== 'checking' && eligibility !== 'pass' && <small className="execution-error">조건이 모두 PASS가 된 공고만 실행 계획을 만들 수 있어요.</small>}{state === 'error' && <small className="execution-error">{message}</small>}</>;
 }
 
 function PlanPage() {
@@ -200,10 +241,12 @@ function PlanPage() {
 function PlanDetailPage() {
   const { id } = useParams();
   const item = opportunities.find((opportunity) => opportunity.id === id);
-  const [doneIds, setDoneIds] = useState(() => new Set(item?.tasks.filter((task) => task.done).map((task) => task.id)));
+  const execution = item ? JSON.parse(sessionStorage.getItem(`keep-on-execution-${item.id}`) || 'null') as { tasks?: Array<{ id: string; title: string; due_at?: string }> } | null : null;
+  const plannedTasks = execution?.tasks?.map((task) => ({ id: task.id, title: task.title, due: task.due_at ? new Date(task.due_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : '일정 확인', done: false })) || item?.tasks || [];
+  const [doneIds, setDoneIds] = useState(() => new Set<string>());
   if (!item) return <Navigate to="/plan" replace />;
   const done = doneIds.size;
-  const progress = done / item.tasks.length;
+  const progress = plannedTasks.length ? done / plannedTasks.length : 0;
   const toggle = (taskId: string) => setDoneIds((current) => {
     const next = new Set(current);
     if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
@@ -225,9 +268,9 @@ function PlanDetailPage() {
         <div className={`progress-ring accent-${item.accent}`} style={{ '--progress': `${progress * 360}deg` } as React.CSSProperties}><div><strong>{Math.round(progress * 100)}%</strong><span>완료</span></div></div>
       </div>
       <section className="generated-plan" aria-label={`${item.title} 실행 계획`}>
-        <div className="generated-plan-head"><div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div><span>{done}/{item.tasks.length} 완료</span></div>
-        <div className="plan-path">
-          {item.tasks.map((task, index) => {
+          <div className="generated-plan-head"><div><span className="section-label">PLANNING AGENT</span><h3>이렇게 시작해 볼까요?</h3></div><span>{done}/{plannedTasks.length} 완료</span></div>
+          <div className="plan-path">
+          {plannedTasks.map((task, index) => {
             const isDone = doneIds.has(task.id);
             return <button type="button" key={task.id} aria-pressed={isDone} onClick={() => toggle(task.id)} className={`plan-node plan-tone-${index % 3} ${isDone ? 'is-done' : ''}`}>
               <span className="plan-node-pin"><Pin size={25} fill="currentColor" /></span>
@@ -236,7 +279,7 @@ function PlanDetailPage() {
           })}
         </div>
       </section>
-      {done === item.tasks.length && <div className="completion-toast"><CheckCircle2 size={19} /><span><strong>멋져요!</strong> 이 기회의 준비를 모두 마쳤어요.</span></div>}
+      {plannedTasks.length > 0 && done === plannedTasks.length && <div className="completion-toast"><CheckCircle2 size={19} /><span><strong>멋져요!</strong> 이 기회의 준비를 모두 마쳤어요.</span></div>}
     </div>
   );
 }
@@ -348,12 +391,20 @@ function ChatPage() {
 
 function ProfilePage() {
   const [reminders, setReminders] = useState(true);
+  const initial = loadProfile();
+  const [profile, setProfile] = useState({ birthDate: initial.birth_date, region: initial.region || '', status: initial.status || '', weeklyHours: String(initial.weekly_available_hours || 8) });
+  const updateProfile = (patch: Partial<typeof profile>) => setProfile((current) => {
+    const next = { ...current, ...patch };
+    saveProfile({ birth_date: next.birthDate, region: next.region, status: next.status, interests: ['AI', '클라우드', '공모전'], weekly_available_hours: Number(next.weeklyHours) || 0 });
+    return next;
+  });
   return (
     <div className="page profile-page">
       <section className="profile-hero"><span className="large-avatar">수</span><div><p className="section-label">MY PROFILE</p><h2>김수정</h2><p>대학생 · 컴퓨터공학 · 3학년</p></div></section>
       <div className="profile-grid">
+        <section className="profile-card profile-basics"><div className="card-title"><Target size={19} /><h3>조건 판단을 위한 기본 정보</h3></div><p>나이 조건은 생년월일 전체를 기준으로 정확하게 확인해요.</p><div className="profile-form"><label>생년월일<input type="date" value={profile.birthDate} onChange={(event) => updateProfile({ birthDate: event.target.value })} /></label><label>거주 지역<input value={profile.region} onChange={(event) => updateProfile({ region: event.target.value })} /></label><label>현재 상태<input value={profile.status} onChange={(event) => updateProfile({ status: event.target.value })} /></label></div></section>
         <section className="profile-card"><div className="card-title"><Target size={19} /><h3>관심 분야</h3></div><div className="interest-tags"><span>AI</span><span>클라우드</span><span>공모전</span><button type="button">+ 추가</button></div></section>
-        <section className="profile-card"><div className="card-title"><CalendarDays size={19} /><h3>활동 가능 시간</h3></div><strong className="big-value">주 8시간</strong><p>평일 저녁과 토요일에 활동할 수 있어요.</p></section>
+        <section className="profile-card"><div className="card-title"><CalendarDays size={19} /><h3>활동 가능 시간</h3></div><strong className="big-value">주 <input className="inline-hours" type="number" min="0" value={profile.weeklyHours} onChange={(event) => updateProfile({ weeklyHours: event.target.value })} />시간</strong><p>평일 저녁과 토요일에 활동할 수 있어요.</p></section>
         <section className="profile-card settings-card"><div className="card-title"><Settings2 size={19} /><h3>알림 설정</h3></div><button className="setting-row" type="button" onClick={() => setReminders((value) => !value)}><span><strong>마감 리마인드</strong><small>7일, 3일, 하루 전에 알려드려요</small></span><i className={reminders ? 'is-on' : ''}><b /></i></button></section>
       </div>
     </div>
