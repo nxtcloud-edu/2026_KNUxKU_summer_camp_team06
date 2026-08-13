@@ -160,6 +160,7 @@ function collectPageEvidence() {
   };
   const sourceIdentity = postIdentity(sourceUrl);
   const ogTitle = meta('meta[property="og:title"]');
+  const thumbnailUrl = meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]');
   const description = meta('meta[property="og:description"]')
     || meta('meta[name="twitter:description"]')
     || meta('meta[name="description"]');
@@ -342,6 +343,7 @@ function collectPageEvidence() {
     platform,
     captured_at: new Date().toISOString(),
     page_title: pageTitle,
+    thumbnail_url: thumbnailUrl,
     author,
     body_text: bodyText,
     rendered_post_url: renderedPostUrl || null,

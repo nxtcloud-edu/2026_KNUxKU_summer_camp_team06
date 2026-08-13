@@ -1,6 +1,7 @@
 import type { DecisionResult } from './types/decision';
 import type { Intake } from './types/intake';
 import { authorizedFetch } from './lib/auth';
+import { uploadPrivateFile } from './lib/auth';
 import type { StoredOpportunity } from './data';
 
 export type ProfilePayload = {
@@ -35,6 +36,29 @@ export async function getMyOpportunities(): Promise<StoredOpportunity[]> {
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message || body.error || '저장 목록을 불러오지 못했습니다.');
   return body.items || [];
+}
+
+export async function createSourceIntake(file: File) {
+  const type = file.type === 'application/pdf' ? 'pdf' : file.type.startsWith('image/') ? 'image' : file.type === 'text/plain' ? 'text' : null;
+  if (!type) throw new Error('이미지, PDF, 텍스트 파일만 지원합니다.');
+  if (file.size > 15 * 1024 * 1024) throw new Error('파일은 15MB 이하만 업로드할 수 있습니다.');
+  const payload: Record<string, unknown> = { source_type: type };
+  if (type === 'text') {
+    payload.source_text = (await file.text()).slice(0, 12000);
+    payload.source_metadata = { original_filename: file.name };
+  } else {
+    const upload = await uploadPrivateFile(file);
+    payload.source_metadata = {
+      object_path: upload.objectPath, original_filename: file.name,
+      mime_type: file.type, byte_size: file.size,
+    };
+  }
+  const response = await authorizedFetch('/v1/intakes/source', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || '파일 분석을 시작하지 못했습니다.');
+  return body as { intake_id: string };
 }
 
 export async function startExecution(opportunityId: string, likedOpportunityIds: string[]) {

@@ -26,6 +26,16 @@ export class InMemoryKeeperStore {
     return intake;
   }
 
+  createSourceIntake(source, userId = 'local-test-user') {
+    this.sequence += 1;
+    const id = createIntakeId(this.sequence);
+    const intake = { id, user_id: userId, status: 'QUEUED', page_evidence: null, ...source, opportunity_id: null, error: null, created_at: now(), updated_at: now() };
+    this.intakes.set(id, intake);
+    return intake;
+  }
+
+  createIntakeFile() { return { id: `file_local_${this.sequence}`, status: 'UPLOADED' }; }
+
   getIntake(id, userId) {
     const intake = this.intakes.get(id) || null;
     return intake && (!userId || intake.user_id === userId) ? intake : null;
@@ -158,6 +168,29 @@ export class SupabaseKeeperStore {
       body: { user_id: userId, status: 'QUEUED', page_evidence: pageEvidence }
     });
     return rows[0] || null;
+  }
+
+  async createSourceIntake(source, userId, accessToken) {
+    const rows = await this.request('intakes', accessToken, {
+      method: 'POST',
+      body: { user_id: userId, status: 'QUEUED', page_evidence: null, ...source }
+    });
+    return rows[0] || null;
+  }
+
+  async createIntakeFile(file, userId, accessToken) {
+    const rows = await this.request('intake_files', accessToken, {
+      method: 'POST', body: { ...file, user_id: userId }
+    });
+    return rows[0] || null;
+  }
+
+  async downloadUpload(objectPath, accessToken) {
+    const response = await this.fetchImpl(`${this.url}/storage/v1/object/keeper-uploads/${objectPath}`, {
+      headers: { apikey: this.anonKey, authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) throw new Error('업로드 파일을 읽지 못했습니다.');
+    return Buffer.from(await response.arrayBuffer());
   }
 
   async ensureProfile(userId, displayName, accessToken) {

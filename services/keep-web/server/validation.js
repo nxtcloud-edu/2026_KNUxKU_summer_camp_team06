@@ -3,7 +3,8 @@ import { CATEGORIES, isHttpUrl } from '../shared/contracts.js';
 export class ValidationService {
   validate(normalized) {
     const errors = [];
-    if (!isHttpUrl(normalized.source_url)) errors.push('INVALID_SOURCE_URL');
+    const isDirectSave = normalized.platform === 'direct';
+    if (!isDirectSave && !isHttpUrl(normalized.source_url)) errors.push('INVALID_SOURCE_URL');
     if (!normalized.platform) errors.push('MISSING_PLATFORM');
     if (!normalized.title) errors.push('MISSING_TITLE');
     if (typeof normalized.body !== 'string' || normalized.body.trim().length < 20) errors.push('CONTENT_INSUFFICIENT');

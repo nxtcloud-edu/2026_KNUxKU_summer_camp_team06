@@ -200,6 +200,38 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
         return;
       }
 
+      if (request.method === 'POST' && url.pathname === '/v1/intakes/source') {
+        const raw = await readJson(request);
+        const sourceType = raw.source_type;
+        if (!['image', 'pdf', 'text'].includes(sourceType)) {
+          return sendJson(response, 422, { error: { code: 'UNSUPPORTED_SOURCE', message: '이미지, PDF 또는 텍스트만 저장할 수 있습니다.' } });
+        }
+        if (sourceType === 'text' && !String(raw.source_text || '').trim()) {
+          return sendJson(response, 422, { error: { code: 'EMPTY_TEXT', message: '정리할 텍스트를 입력해 주세요.' } });
+        }
+        const metadata = raw.source_metadata || {};
+        if (sourceType !== 'text' && (!metadata.object_path || !metadata.mime_type || !metadata.object_path.startsWith(`${session.userId}/`))) {
+          return sendJson(response, 422, { error: { code: 'INVALID_FILE', message: '내 저장소에 업로드된 파일만 분석할 수 있습니다.' } });
+        }
+        const intake = await keeperStore.createSourceIntake({
+          source_type: sourceType,
+          source_url: raw.source_url || null,
+          source_text: sourceType === 'text' ? String(raw.source_text).slice(0, 12000) : null,
+          source_metadata: metadata,
+          extraction_status: 'PENDING',
+        }, session.userId, session.accessToken);
+        if (sourceType !== 'text' && typeof keeperStore.createIntakeFile === 'function') {
+          await keeperStore.createIntakeFile({
+            intake_id: intake.id, file_kind: sourceType, object_path: metadata.object_path,
+            original_filename: metadata.original_filename || 'upload', mime_type: metadata.mime_type,
+            byte_size: metadata.byte_size || 1,
+          }, session.userId, session.accessToken);
+        }
+        setImmediate(() => processIntake(keeperStore, intake.id, session));
+        sendJson(response, 202, { intake_id: intake.id, status: intake.status, status_url: `/v1/intakes/${intake.id}` });
+        return;
+      }
+
       const intakeMatch = url.pathname.match(/^\/v1\/intakes\/([^/]+)$/);
       if (request.method === 'GET' && intakeMatch) {
         const intake = await keeperStore.getIntake(intakeMatch[1], session.userId, session.accessToken);

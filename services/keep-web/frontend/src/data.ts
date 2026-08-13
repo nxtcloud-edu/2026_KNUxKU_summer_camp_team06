@@ -11,6 +11,7 @@ export interface Opportunity {
   deadline: string;
   savedFrom: string;
   sourceUrl: string;
+  thumbnailUrl: string | null;
   savedAt: string;
   accent: Accent;
   verdict: 'pass' | 'needsCheck';
@@ -34,6 +35,7 @@ export type StoredOpportunity = {
   platform?: string | null;
   status?: string | null;
   created_at?: string | null;
+  thumbnail_url?: string | null;
 };
 
 export let opportunities: Opportunity[] = [];
@@ -59,6 +61,7 @@ export function setOpportunities(items: StoredOpportunity[]) {
     deadline: item.deadline || '정보 없음',
     savedFrom: item.platform || '직접 저장',
     sourceUrl: item.canonical_url || item.source_url || '#',
+    thumbnailUrl: item.thumbnail_url || null,
     savedAt: item.created_at ? new Date(item.created_at).toLocaleDateString('ko-KR') : '방금',
     accent: accents[index % accents.length],
     verdict: item.status === 'NEEDS_REVIEW' ? 'needsCheck' : 'pass',

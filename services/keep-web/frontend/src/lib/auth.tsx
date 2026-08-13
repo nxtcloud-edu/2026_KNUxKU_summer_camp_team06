@@ -18,6 +18,17 @@ export async function authorizedFetch(input: RequestInfo | URL, init: RequestIni
   return fetch(input, { ...init, headers });
 }
 
+export async function uploadPrivateFile(file: File) {
+  if (!client) throw new Error('로그인 준비 중입니다. 잠시 후 다시 시도해 주세요.');
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError || !userData.user) throw new Error('파일 저장을 위해 로그인해 주세요.');
+  const filename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'upload';
+  const objectPath = `${userData.user.id}/${crypto.randomUUID()}-${filename}`;
+  const { error } = await client.storage.from('keeper-uploads').upload(objectPath, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(`파일 업로드에 실패했습니다: ${error.message}`);
+  return { objectPath, userId: userData.user.id };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);

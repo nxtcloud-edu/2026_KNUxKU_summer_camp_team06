@@ -14,6 +14,7 @@ test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언
   assert.ok(manifest.host_permissions.includes('https://www.instagram.com/*'));
   assert.match(popup, /chrome\.scripting\.executeScript/);
   assert.match(popup, /og:description/);
+  assert.match(popup, /og:image/);
   assert.match(popup, /og:url/);
   assert.match(popup, /reels/);
   assert.match(popup, /post-caption/);

@@ -26,7 +26,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { AppShell } from './components/AppShell';
 import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
-import { getMyOpportunities, startExecution } from './agentApi';
+import { createSourceIntake, getIntake, getMyOpportunities, startExecution } from './agentApi';
 import { useAuth } from './lib/auth';
 import { OrderTracking } from './components/ui/order-tracking';
 import {
@@ -100,7 +100,9 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
   return (
     <Link to={`/saved/${item.id}`} className={`dashboard-opportunity-card accent-${item.accent}`}>
       <span className="opportunity-rank" aria-hidden="true">{rank}</span>
-      <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true"><span /><i /><b /><em /></div>
+      <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true">
+        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <><span /><i /><b /><em /></>}
+      </div>
       <div className="opportunity-card-copy">
         <div><span>{item.category}</span>{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
         <h4>{item.title}</h4>
@@ -114,20 +116,39 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
 function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
-  const [uploads, setUploads] = useState<Array<{ id: string; name: string; preview?: string }>>([]);
+  const [uploads, setUploads] = useState<Array<{ id: string; name: string; preview?: string; status: string }>>([]);
   const [savedFile, setSavedFile] = useState<{ name: string; preview?: string } | null>(null);
   const decisions = useDecisions();
   const recent = useRecentQueries();
   const filters = ['전체', '마감 임박', '확인 필요', '참여 결정', '나중에', '보관'];
-  const addFiles = (files: FileList | File[]) => {
+  const addFiles = async (files: FileList | File[]) => {
     const added = Array.from(files).map((file, index) => ({
       id: `${Date.now()}-${index}-${file.name}`,
       name: file.name,
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      status: '업로드 중',
     }));
     if (!added.length) return;
     setUploads((current) => [...added, ...current]);
     setSavedFile(added[0]);
+    for (const [index, file] of Array.from(files).entries()) {
+      try {
+        const intake = await createSourceIntake(file);
+        let status = 'Gemini가 내용을 읽는 중';
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 900));
+          const current = await getIntake(intake.intake_id);
+          status = current.status;
+          if (['READY_FOR_REVIEW', 'NEEDS_REVIEW', 'FAILED'].includes(status)) break;
+        }
+        if (status === 'FAILED') throw new Error('파일 분석에 실패했습니다.');
+        const items = await getMyOpportunities();
+        setOpportunities(items);
+        setUploads((current) => current.map((entry) => entry.id === added[index].id ? { ...entry, status: '정리 완료' } : entry));
+      } catch (error) {
+        setUploads((current) => current.map((entry) => entry.id === added[index].id ? { ...entry, status: error instanceof Error ? error.message : '분석 실패' } : entry));
+      }
+    }
     window.setTimeout(() => setSavedFile(null), 1650);
   };
   const filtered = useMemo(() => opportunities.filter((item) => {
@@ -166,8 +187,8 @@ function SavedPage() {
         <h2>저장한 정보가<br />기회가 되는 곳</h2>
         <p>Instagram과 Threads에서 Keep한 정보만 모았어요. 하나씩 열어보고 결정하면 됩니다.</p>
       </section>
-      <label className="upload-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(event.dataTransfer.files); }}>
-        <input type="file" multiple accept="image/*,.pdf,.txt" onChange={(event) => event.target.files && addFiles(event.target.files)} />
+      <label className="upload-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files); }}>
+        <input type="file" multiple accept="image/*,.pdf,.txt" onChange={(event) => event.target.files && void addFiles(event.target.files)} />
         <span className="upload-icon"><Upload size={20} /></span>
         <span><strong>저장한 파일을 여기로 끌어다 놓으세요</strong><small>이미지, PDF, 텍스트 파일을 추가하면 기회 정보로 정리해드려요.</small></span>
         <span className="upload-action">파일 선택</span>
@@ -175,10 +196,10 @@ function SavedPage() {
       {uploads.length > 0 && (
         <div className="upload-queue" aria-live="polite">
           {uploads.map((file) => (
-            <span key={file.id}><Check size={14} />{file.name}<small>이 브라우저에만 저장됨</small></span>
+            <span key={file.id}><Check size={14} />{file.name}<small>{file.status}</small></span>
           ))}
           <span className="upload-queue-note">
-            처리 단계를 실시간으로 보려면 확장프로그램의 <strong>현재 페이지 Keep</strong>을 사용하세요.
+            파일은 내 저장소에 보관되고 Gemini가 내용을 읽어 저장 정보로 정리합니다.
           </span>
         </div>
       )}

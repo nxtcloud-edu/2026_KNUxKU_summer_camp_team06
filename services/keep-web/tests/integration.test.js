@@ -68,6 +68,25 @@ test('Keep payload가 Agent를 거쳐 웹 목록에 나타난다', async (t) => 
   assert.equal(normalizations[0].opportunity_id, list.items[0].id);
 });
 
+test('직접 입력 텍스트도 Intake를 거쳐 개인 저장 목록에 정리된다', async (t) => {
+  const app = createKeeperServer({ port: 0 });
+  const address = await app.start();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.stop());
+
+  const response = await fetch(`${baseUrl}/v1/intakes/source`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ source_type: 'text', source_text: '대학생 대상 AI 해커톤입니다. 접수 마감은 2026년 9월 30일입니다.' })
+  });
+  assert.equal(response.status, 202);
+  const accepted = await response.json();
+  const intake = await waitForTerminal(baseUrl, accepted.intake_id);
+  assert.equal(intake.status, 'READY_FOR_REVIEW');
+  const list = await (await fetch(`${baseUrl}/v1/opportunities`)).json();
+  assert.equal(list.items[0].platform, 'direct');
+  assert.equal(list.items[0].deadline, '2026-09-30');
+});
+
 test('Threads 분류와 동일 URL 중복 방지를 확인한다', async (t) => {
   const app = createKeeperServer({ port: 0 });
   const address = await app.start();

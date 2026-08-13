@@ -76,6 +76,7 @@ function ruleBasedNormalize(extracted) {
     deadline: parseDeadline(extracted.deadline_text),
     links: extracted.links,
     evidence: extracted.evidence,
+    thumbnail_url: extracted.thumbnail_url || null,
     confidence: category ? Math.min(0.98, 0.7 + best.score * 0.1) : 0.2,
     normalization_method: 'rules',
     content_category: contentCategory(parseDeadline(extracted.deadline_text)),

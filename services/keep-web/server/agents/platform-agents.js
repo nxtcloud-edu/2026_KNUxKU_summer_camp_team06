@@ -38,6 +38,7 @@ class PlatformExtractionAgent {
       author: compact(pageEvidence.author, 'unknown'),
       published_at: pageEvidence.published_at || null,
       deadline_text: compact(pageEvidence.deadline_text, body.match(/(?:마감|접수기간|신청기간|deadline)[^\n]*/i)?.[0] || ''),
+      thumbnail_url: compact(pageEvidence.thumbnail_url),
       links: pageEvidence.links || [],
       evidence
     };

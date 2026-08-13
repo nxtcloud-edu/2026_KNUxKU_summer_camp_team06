@@ -1,5 +1,6 @@
 import { createPlatformAgent } from './agents/platform-agents.js';
 import { PythonBridgeNormalizationAgent } from './agents/python-bridge-agent.js';
+import { GeminiSourceExtractionAgent } from './agents/source-extraction-agent.js';
 import { ValidationService } from './validation.js';
 
 const MAX_ACTIVE_INTAKES_PER_USER = 2;
@@ -19,12 +20,35 @@ export async function processIntake(store, intakeId, session) {
     await store.updateIntake(intakeId, { status: 'RECEIVED' }, userId, accessToken);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, { status: 'EXTRACTING' }, userId, accessToken);
-    const agent = createPlatformAgent(intake.page_evidence.platform);
-    if (!agent) {
-      await store.updateIntake(intakeId, { status: 'UNSUPPORTED', error: { code: 'UNSUPPORTED_PLATFORM', message: 'Instagram 또는 Threads만 지원합니다.' } }, userId, accessToken);
-      return;
+    let extracted;
+    if ((intake.source_type || 'extension') === 'extension') {
+      const agent = createPlatformAgent(intake.page_evidence?.platform);
+      if (!agent) {
+        await store.updateIntake(intakeId, { status: 'UNSUPPORTED', error: { code: 'UNSUPPORTED_PLATFORM', message: 'Instagram 또는 Threads만 지원합니다.' } }, userId, accessToken);
+        return;
+      }
+      extracted = agent.extract(intake.page_evidence);
+    } else {
+      const sourceText = await new GeminiSourceExtractionAgent().extract({
+        sourceType: intake.source_type,
+        sourceText: intake.source_text,
+        objectPath: intake.source_metadata?.object_path,
+        mimeType: intake.source_metadata?.mime_type,
+      }, store, accessToken);
+      extracted = {
+        platform: 'direct',
+        source_url: intake.source_url || `keep-on://intakes/${intake.id}`,
+        canonical_url: intake.source_url || `keep-on://intakes/${intake.id}`,
+        title: intake.source_metadata?.original_filename || '직접 저장한 정보',
+        body: sourceText,
+        author: '직접 저장',
+        published_at: null,
+        deadline_text: sourceText.match(/(?:마감|접수기간|신청기간|deadline)[^\n]*/i)?.[0] || '',
+        links: [],
+        evidence: [{ source: intake.source_type, locator: intake.source_metadata?.original_filename || 'direct input', text: sourceText.slice(0, 2000) }],
+      };
+      await store.updateIntake(intakeId, { extraction_status: 'OK', extracted_title: extracted.title, extracted_text: sourceText, extraction_evidence: extracted.evidence }, userId, accessToken);
     }
-    const extracted = agent.extract(intake.page_evidence);
     if (store.isCancelled(intakeId)) return;
     await store.updateIntake(intakeId, { status: 'NORMALIZING' }, userId, accessToken);
     const normalized = await new PythonBridgeNormalizationAgent().normalize(extracted);
@@ -47,6 +71,7 @@ export async function processIntake(store, intakeId, session) {
       links: normalized.links,
       evidence: normalized.evidence,
       confidence: normalized.confidence,
+      thumbnail_url: extracted.thumbnail_url || intake.source_metadata?.thumbnail_url || null,
       normalization_method: normalized.normalization_method,
       content_category: normalized.content_category,
       conditions: normalized.conditions,
