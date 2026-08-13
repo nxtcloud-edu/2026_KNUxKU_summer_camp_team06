@@ -1,0 +1,193 @@
+/* ==========================================================================
+   shadcn/ui layer for KEEP:ON
+   Tailwind preflight is disabled (see tailwind.config.js), so everything the
+   shadcn components expect from preflight is re-declared here, scoped to
+   `.tw-root`. Radix portals (Dialog / Select / DropdownMenu content) render
+   outside the page tree, so those components add `tw-root` to their own
+   className.
+   ========================================================================== */
+
+@tailwind components;
+@tailwind utilities;
+
+.tw-root {
+  /* shadcn design tokens, namespaced to avoid clashing with index.css :root */
+  --sd-background: 0 0% 100%;
+  --sd-foreground: 242 36% 15%;
+  --sd-card: 0 0% 100%;
+  --sd-card-foreground: 242 36% 15%;
+  --sd-popover: 0 0% 100%;
+  --sd-popover-foreground: 242 36% 15%;
+  --sd-primary: 202 60% 46%;
+  --sd-primary-foreground: 0 0% 100%;
+  --sd-secondary: 205 63% 95%;
+  --sd-secondary-foreground: 202 60% 28%;
+  --sd-muted: 220 20% 97%;
+  --sd-muted-foreground: 243 9% 46%;
+  --sd-accent: 205 63% 95%;
+  --sd-accent-foreground: 202 60% 28%;
+  --sd-destructive: 0 72% 51%;
+  --sd-destructive-foreground: 0 0% 100%;
+  --sd-border: 228 10% 90%;
+  --sd-input: 228 10% 90%;
+  --sd-ring: 202 60% 46%;
+  --sd-radius: 14px;
+
+  color: hsl(var(--sd-foreground));
+}
+
+/* Tailwind's custom-property defaults (normally emitted by preflight). Without
+   these, transform / ring / shadow utilities resolve to invalid values. */
+.tw-root,
+.tw-root *,
+.tw-root *::before,
+.tw-root *::after {
+  --tw-border-spacing-x: 0;
+  --tw-border-spacing-y: 0;
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  --tw-pan-x: ;
+  --tw-pan-y: ;
+  --tw-pinch-zoom: ;
+  --tw-scroll-snap-strictness: proximity;
+  --tw-gradient-from-position: ;
+  --tw-gradient-via-position: ;
+  --tw-gradient-to-position: ;
+  --tw-ordinal: ;
+  --tw-slashed-zero: ;
+  --tw-numeric-figure: ;
+  --tw-numeric-spacing: ;
+  --tw-numeric-fraction: ;
+  --tw-ring-inset: ;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: #fff;
+  --tw-ring-color: hsl(var(--sd-ring) / 0.5);
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-blur: ;
+  --tw-brightness: ;
+  --tw-contrast: ;
+  --tw-grayscale: ;
+  --tw-hue-rotate: ;
+  --tw-invert: ;
+  --tw-saturate: ;
+  --tw-sepia: ;
+  --tw-drop-shadow: ;
+  --tw-backdrop-blur: ;
+  --tw-backdrop-brightness: ;
+  --tw-backdrop-contrast: ;
+  --tw-backdrop-grayscale: ;
+  --tw-backdrop-hue-rotate: ;
+  --tw-backdrop-invert: ;
+  --tw-backdrop-opacity: ;
+  --tw-backdrop-saturate: ;
+  --tw-backdrop-sepia: ;
+
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: hsl(var(--sd-border));
+}
+
+/* Minimal scoped preflight equivalent */
+.tw-root h1,
+.tw-root h2,
+.tw-root h3,
+.tw-root h4,
+.tw-root h5,
+.tw-root h6,
+.tw-root p,
+.tw-root figure,
+.tw-root blockquote,
+.tw-root ul,
+.tw-root ol {
+  margin: 0;
+}
+
+.tw-root h1,
+.tw-root h2,
+.tw-root h3,
+.tw-root h4,
+.tw-root h5,
+.tw-root h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.tw-root ul,
+.tw-root ol {
+  padding: 0;
+  list-style: none;
+}
+
+.tw-root button,
+.tw-root [role='button'] {
+  cursor: pointer;
+}
+
+.tw-root button,
+.tw-root input,
+.tw-root optgroup,
+.tw-root select,
+.tw-root textarea {
+  font-family: inherit;
+  font-feature-settings: inherit;
+  font-size: 100%;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+.tw-root button,
+.tw-root [type='button'],
+.tw-root [type='reset'],
+.tw-root [type='submit'] {
+  -webkit-appearance: button;
+  background-color: transparent;
+  background-image: none;
+}
+
+.tw-root input::placeholder,
+.tw-root textarea::placeholder {
+  opacity: 1;
+  color: hsl(var(--sd-muted-foreground));
+}
+
+.tw-root textarea {
+  resize: vertical;
+}
+
+.tw-root svg {
+  display: block;
+  vertical-align: middle;
+}
+
+.tw-root img,
+.tw-root video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.tw-root [hidden] {
+  display: none;
+}
+
+/* Horizontal filter rail on mobile */
+.tw-root .scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tw-root .scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
