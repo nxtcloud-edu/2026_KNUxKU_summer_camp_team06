@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.*
+!.env.example
 .DS_Store
 *.egg-info/
 .pytest_cache/
@@ -11,3 +13,19 @@ venv/
 data/execution/execution_db.json
 data/execution/_streamlit_session.json
 data/execution/execution_view.html
+
+# Node service dependencies and build output
+node_modules/
+services/keep-web/node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Local runtime data and packaged extensions
+tmp/
+*.db
+*.sqlite
+*.sqlite3
+*.crx
+*.zip

@@ -1,104 +1,122 @@
-# 2026_KNUxKU_summer_camp_team06
+# KEEP:ON
 
-강원대x고려대 Summer Agentic AI 심화 몰입 캠프 6팀 레포지토리입니다.
-
-저장은 했는데 실행은 안 하는 청년을 위해, 저장한 순간부터 마감까지 끌고 가는 AI 에이전트를 만듭니다.
+저장은 했는데 다시 확인하지 않아 기회를 놓치는 청년·대학생을 위한 정보 실행 서비스입니다.
+사용자가 Instagram·Threads 등의 정보성 게시물을 직접 **Keep**하거나 링크·파일·텍스트를
+입력하면, 본문을 근거와 함께 정리해 대시보드에 표시하고 이후 자격 판정·마감 관리·실행
+계획으로 연결합니다.
 
 ## 시작하기 전에 읽을 문서
 
 | 문서 | 내용 |
 |---|---|
 | [`Project.md`](./Project.md) | 서비스 정의, 사용자 흐름, 팀 역할 분담, 절대 규칙(R1~R7) — **가장 먼저 읽을 문서** |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 전체 데이터 흐름도, 역할↔모듈 매핑, 공용 스키마 계약, 배포 단계 |
-| [`docs/plan_b.md`](./docs/plan_b.md) | B(데이터·링크 분석) 파트 실행 계획 및 진행 상황 |
-| [`docs/personas.md`](./docs/personas.md) | 수집 데이터 기반 테스트 페르소나 5종 — C의 판정 로직 테스트에 바로 사용 가능 |
-| [`docs/db_schema.md`](./docs/db_schema.md) | Supabase DB 스키마 전체 계획(8개 테이블) — B가 만든 2개는 실제 적용 완료, 나머지는 A/C/D 몫 |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 전체 데이터 흐름도(Node 입력 + Python 처리), 모듈 매핑, 공용 계약 |
+| [`docs/merge_plan_a_b.md`](./docs/merge_plan_a_b.md) | Node(A)↔Python(B) 브릿지 설계 — 왜 이렇게 나눴는지 |
+| [`docs/plan_b.md`](./docs/plan_b.md) | B(데이터·링크 분석) 실행 계획 |
+| [`docs/plan_c.md`](./docs/plan_c.md) | C(판정·추천) 실행 계획 |
+| [`docs/plan_d.md`](./docs/plan_d.md) | D(실행 에이전트) 실행 계획 |
+| [`docs/personas.md`](./docs/personas.md) | 테스트 페르소나 5종 |
+| [`docs/db_schema.md`](./docs/db_schema.md) | Supabase 스키마 전체 계획 |
+| [`services/keep-web/README.md`](./services/keep-web/README.md) | Chrome Extension·Node 서버 로컬 실행 안내 |
+
+## 전체 아키텍처 (한눈에)
+
+```mermaid
+flowchart LR
+  U[사용자] --> E[Chrome Extension<br/>Keep 버튼]
+  U --> L[웹 링크/파일/텍스트 입력]
+  E --> I[Node: POST /v1/intakes]
+  L --> I
+  I --> P[Node: Platform Extraction<br/>Instagram·Threads]
+  P --> BR[Bridge: Python normalize 호출]
+  BR --> N8[Python: 8종 자격조건 + raw_quote 근거<br/>content_category 분류]
+  N8 --> ELIG[Python: eligibility/feasibility/ranking<br/>C 담당, 구현 완료]
+  ELIG --> CONFIRM{사용자 확인}
+  CONFIRM --> EXEC[Python: Execution Agent<br/>Task 분해 + Calendar + Notification<br/>D 담당, 구현 완료]
+```
+
+**핵심 원칙**: Node 서비스(A)는 "입력을 받아서 원문을 추출"하는 역할까지만 담당하고,
+**자격조건을 구조화하는 정규화(normalization)는 Python 파이프라인(B)이 그대로 담당**한다.
+C(판정)와 D(실행)는 이미 완전히 구현되어 있고 둘 다 B의 8종 조건 구조(`ConditionType`,
+`EligibilityCondition`, `raw_quote`/`span`)를 그대로 입력으로 쓰기 때문에, 이 계약을 깨면
+안 된다. 왜 이렇게 나눴는지는 `docs/merge_plan_a_b.md` 참고.
 
 ## 폴더 구조 및 담당자
 
 ```
+services/keep-web/        # A — Chrome Extension + Node HTTP 서버 (입력·추출 계층)
+  extension/                Manifest V3, Keep 버튼
+  server/                   Intake API, workflow, platform extraction
+  fixtures/                 로그인 없이 재현 가능한 Instagram/Threads 테스트 페이지
+
 src/
-  models.py            # A 소유 — 공용 스키마 (아직 draft 단계, 각 모듈 상단 참고)
-  supervisor.py         # A — 전체 오케스트레이션
-  profile_agent.py       # A — 온보딩 → UserProfile
-  extraction_agent.py    # B — 링크/텍스트/이미지 → SavedContext (구현 완료)
-  normalization_agent.py # B — 공고 원문 → 8종 자격조건 구조화 (구현 완료)
-  eligibility_agent.py   # C — 적격 판정
-  feasibility_agent.py   # C — 실행 가능성 평가
-  ranking_agent.py       # C — 우선순위 정렬
-  planning_agent.py      # D — Quest/Todo + 마감 역산
-  execution_chat.py      # D — 대화형 일정 조정
-  quest_todo.py          # D — Quest/Todo 상태 관리
-  calendar_agent.py      # D — 캘린더 연동
+  models.py                # A 소유 — 공용 스키마 (draft, 각 모듈 상단 참고)
+  supervisor.py             # A — 전체 오케스트레이션
+  bridge_server.py           # B — Node → Python 정규화 브릿지 (Flask)
+  extraction_agent.py        # B — 링크/파일/이미지/텍스트 → SavedContext (구현 완료)
+  normalization_agent.py     # B — 8종 자격조건 구조화 + content_category (구현 완료)
+  db.py                      # B — Supabase 저장 레이어
+  eligibility_agent.py       # C — 적격 판정 (구현 완료)
+  feasibility_agent.py       # C — 실행 가능성 평가 (구현 완료)
+  ranking_agent.py           # C — 추천/우선순위 (구현 완료)
+  decision_engine.py         # C — 좋아요 기반 추천 엔진 (구현 완료)
+  execution/                 # D — Execution Agent 패키지 (Task 분해·Calendar·Notification, 구현 완료)
+  planning_agent.py           # D — src/execution 진입점 (얇은 래퍼)
+  execution_chat.py           # D — 대화형 일정 조정
+  quest_todo.py               # D — Task/진행률 모델
+  calendar_agent.py           # D — CalendarTool 진입점
+
 app/
-  streamlit_app.py       # E — Frontend
-data/
-  opportunities.json         # B — 실제 공고 20건 (자격요건 원문 포함)
-  normalization_results.json # B — 위 20건을 normalize()에 돌린 결과 (재생성 가능, Supabase에도 동일하게 적재됨)
-scripts/
-  run_pipeline.py         # B — extraction+normalization 파이프라인 검증 스크립트
-  seed_supabase.py        # B — 20건을 Supabase saved_items/normalized_opportunities에 적재
-supabase/
-  migrations/              # B — DB 마이그레이션 SQL (Supabase SQL Editor에서 실행)
-src/db.py                  # B — extract()/normalize() 결과를 Supabase에 저장하는 레이어
+  streamlit_app.py          # E — Frontend (미착수)
+
+data/            # B — 실제 공고 20건 + 정규화 결과 (테스트 픽스처)
+scripts/         # B — 파이프라인 검증 스크립트
+supabase/migrations/   # A 스키마(profiles/intakes/opportunities) + B 확장분(content_category/conditions)
+docs/            # 팀 전체 계획 문서
 ```
 
-각 파일 상단에 `OWNER:` 주석으로 담당자를 표시했습니다. `src/models.py`는 아직 A가 정식
-스키마로 통합하기 전이라, 지금은 `extraction_agent.py`/`normalization_agent.py` 안에 draft
-스키마(`SavedContext`, `NormalizationResult` 등)가 임시로 정의되어 있습니다.
+각 파일 상단에 `OWNER:` 주석으로 담당자를 표시했습니다.
 
-## B(데이터·링크 분석) 파트 — 현재 상태
+## 실행 방법
 
-- `extraction_agent.py`: 링크(requests+bs4, 실제 크롤링 동작) / 텍스트(동작) / 파일(PDF, pypdf 실제 동작 — HWP는 의도적으로 미지원, 스크린샷 유도) / 이미지(**Gemini Vision 실제 동작**)
-- `normalization_agent.py`: 나이·기간은 정규식(순수 함수, R5) / 나머지 6종 조건은 **Gemini API 실제 동작**. 모든 조건은 원문에 실재하는 인용(`raw_quote`)인지 코드로 검증(`_verify_grounding`)하여 R2("근거 없이 생성 금지")를 강제함 — LLM이 뭘 반환하든 이 검증은 그대로 유지됨
-- **LLM 제공자**: AWS 채택이 팀 차원에서 아직 불확실해서 우선 **Gemini API**로 실연동함 (`.env`의 `GEMINI_API_KEY`, 키 없으면 자동으로 mock 폴백). AWS로 확정되면 구현체만 교체하면 됨 — 자세한 내용은 `docs/plan_b.md` 참고
-- **content_category 자동 분류**: 사용자는 지원사업만 저장하지 않는다(인스타 정보성 글, 행사 티켓 공지 등도 저장함) — 8종 조건 중 뭐가 뽑혔는지로 `opportunity`/`time_sensitive_info`/`general_info`를 자동 분류해서, 지원사업이 아닌 콘텐츠가 C의 적격 판정으로 잘못 넘어가지 않도록 함. 자세한 라우팅 규칙은 `ARCHITECTURE.md` 1-1절 참고
-- Instagram/TikTok처럼 로그인 없인 본문을 못 주는 SPA는 감지해서 실패 처리 + 스크린샷 유도 (겉보기엔 200 OK라도 실제로는 로그인월인 경우까지 커버)
-- 실제 공고 20건(지원사업6·공모전5·서포터즈5·부트캠프4)으로 검증 완료: **20/20 정규화 성공**, 8종 조건 전 타입 실제 등장 확인
-- **DB: Supabase**(Project.md 원래 계획인 "로컬 JSON, DB 없음"에서 전환됨). `saved_items`/`normalized_opportunities` 테이블 생성 + RLS 활성화 + 실제 20건 적재 완료 (`src/db.py`, `scripts/seed_supabase.py`, `supabase/migrations/`). 전체 스키마 계획은 `docs/db_schema.md` 참고 — C/D는 각자 테이블을 이 문서 기준으로 추가하면 됨
-
-**실행 방법**
+**Python 파이프라인 (B/C/D)**
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env   # GEMINI_API_KEY=, SUPABASE_URL=, SUPABASE_KEY= 채우기
-                        # (Gemini는 Google AI Studio, Supabase는 프로젝트 Settings > API Keys)
 
 python -m src.extraction_agent       # 추출 데모
-python -m src.normalization_agent    # 정규화 데모
-python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증 (로컬 JSON에 저장)
-python -m scripts.seed_supabase      # 20건을 Supabase에 적재
+python -m src.normalization_agent    # 정규화 데모 (8종 조건 + content_category)
+python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증
+python -m src.execution.demo         # 실행 에이전트 E2E 데모
+pytest tests/                        # C/D 테스트
 ```
 
-`.env`에 `GEMINI_API_KEY`가 없으면 코드가 자동으로 mock으로 폴백하니, 키가 당장 없어도
-실행은 됩니다(단, 실제 LLM 결과는 아님). 인터페이스가 provider 무관하게 설계되어 있어서
-AWS로 최종 확정되면 구현체만 교체하면 됩니다. 자세한 내용은 `docs/plan_b.md` 참고.
-
-## D(실행 에이전트) 파트 — 현재 상태
-
-사용자가 어떤 기회를 "이거 할래"라고 확정한 순간부터 마감까지 실제로 행동·완료하도록 관리하는
-**Execution Agent**. 두 가지 Tool로 동작이 눈에 보인다:
-
-1. **Calendar Tool** — 공고를 Task로 분해하고 마감에서 역산해 날짜에 배치, **웹 캘린더에 등록**
-2. **Notification/Inbox Tool** — "마감 3일 전에 알려줘" → **예약 알림**, 시간이 되면 인박스로 전달.
-   진행이 정체되면 에이전트가 먼저 **개입 알림**을 보냄
-
-- 구현: `src/execution/` 패키지 (모듈 9종 + Tool 2개 + State/DB + Scheduler + Memory).
-  기존 D 스텁 파일(`planning_agent.py` 등)은 이 패키지로 연결되는 얇은 진입점.
-- **provider 스위치**(B 파트와 동일): `.env`에 `GEMINI_API_KEY`가 있으면 **gemini 모드**로
-  Gemini가 공고 원문을 읽고 Task를 분해한다. 없으면 자동으로 카테고리 템플릿(local)으로 폴백해
-  키/AWS 없이도 항상 동작. `EXECUTION_LLM_PROVIDER=bedrock`이면 Bedrock(Claude) 경로.
-- DB: MVP는 로컬 JSON. E 프론트와 캘린더/인박스를 공유할 땐 Supabase로 — 스키마는
-  `docs/supabase_schema.sql`, 연동 지점은 `docs/plan_d.md` 7절 참고.
-- 실제 공고 20건 전부 크래시 없이 실행 검증, 핵심 동작 pytest 11종 통과.
-
-**실행 방법**
+**Node 서비스 (A) — Chrome Extension + HTTP 서버**
 ```bash
-python -m src.execution.demo             # 콘솔 E2E 데모 (Step 0~4)
-python -m src.execution.render --run     # 데모 + 캘린더/인박스 HTML 생성 (data/execution/execution_view.html)
-streamlit run app/execution_demo_app.py  # 인터랙티브 데모 (발표용)
-pytest tests/test_execution_agent.py     # 테스트
+cd services/keep-web
+npm install
+npm test
+npm start   # 기본 포트 4173/4174
+```
+Chrome에서 `chrome://extensions` → 개발자 모드 → `services/keep-web/extension/`을
+압축해제된 확장 프로그램으로 로드. 로그인 없이 테스트하려면
+`http://localhost:4173/fixtures/instagram.html` / `.../threads.html` 사용.
+
+**브릿지 서버 (B, Node↔Python 연결)**
+```bash
+python -m src.bridge_server   # 기본 포트 5001, Node workflow.js가 이걸 호출
 ```
 
-자세한 내용·발표 시나리오는 `docs/plan_d.md` 참고.
+## 현재 상태 요약
+
+| 담당 | 상태 |
+|---|---|
+| A (Node/Extension) | Chrome Extension + Intake API + Instagram/Threads 추출 **구현 완료** |
+| B (Python 정규화) | extraction/normalization/DB 저장 **구현 완료**, 실제 20건 검증 완료, Gemini 실연동 |
+| C (판정/추천) | eligibility/feasibility/ranking/decision_engine **구현 완료**, 테스트 포함 |
+| D (실행 에이전트) | Task 분해/Calendar/Notification **구현 완료**, 콘솔·Streamlit 데모 동작 |
+| E (Frontend) | 미착수 |
+
+절대 규칙(R1~R7)과 상세 계약은 `Project.md`/`ARCHITECTURE.md` 참고.

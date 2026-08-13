@@ -1,101 +1,100 @@
-# ARCHITECTURE.md — 팀 전체 아키텍처
+# ARCHITECTURE.md — KEEP:ON 실행 아키텍처
 
-> 이 문서는 `Project.md`(제품 정의·규칙)를 전제로, 5인 역할이 코드 레벨에서
-> 어떻게 연결되는지를 정의한다. 스키마를 바꿀 때는 이 문서와 `src/models.py`를
-> 함께 갱신하고 팀에 공유할 것.
+> Node 서비스(A, `services/keep-web/`)가 입력·추출 계층이고, 나머지(정규화·판정·실행)는
+> Python(`src/`)이 담당한다. 두 런타임을 하나로 합치지 않고 **HTTP 브릿지**로 연결한다 —
+> 왜 이렇게 나눴는지는 `docs/merge_plan_a_b.md` 참고.
 
 ## 1. 전체 데이터 흐름
 
 ```mermaid
 flowchart TD
-    U[사용자] -->|온보딩 30초| A_PROFILE["A: profile_agent.py<br/>UserProfile"]
-    U -->|링크/파일/스크린샷/텍스트 저장| B_EXT["B: extraction_agent.py<br/>SavedContext"]
-    B_EXT --> B_NORM["B: normalization_agent.py<br/>NormalizationResult<br/>(content_category 분류 + 8종 자격조건)"]
-    B_NORM -->|OPPORTUNITY| C_ELIG
-    A_PROFILE --> C_ELIG["C: eligibility_agent.py<br/>충족/불충족 + 근거"]
-    C_ELIG --> C_FEAS["C: feasibility_agent.py<br/>실행 난이도"]
-    C_FEAS --> C_RANK["C: ranking_agent.py<br/>우선순위"]
-    C_RANK --> CONFIRM{"사용자 확인<br/>(자동 등록 없음)"}
-    B_NORM -->|"TIME_SENSITIVE_INFO<br/>(판정 skip)"| D_PLAN
-    B_NORM -->|"GENERAL_INFO<br/>(판정 skip)"| D_PLAN
-    CONFIRM -->|승인| D_PLAN["D: planning_agent.py<br/>Quest/Todo + 마감 역산"]
-    D_PLAN --> D_CAL["D: calendar_agent.py"]
-    D_PLAN --> D_CHAT["D: execution_chat.py<br/>일정 대화 조정"]
-    A_SUP["A: supervisor.py<br/>전체 오케스트레이션 (content_category로 라우팅)"] -.조율.-> B_EXT
-    A_SUP -.조율.-> C_ELIG
-    A_SUP -.조율.-> D_PLAN
-    E_UI["E: streamlit_app.py"] --> U
-    CONFIRM --> E_UI
+    U[사용자] -->|Keep 버튼| EXT["A: Chrome Extension"]
+    U -->|웹에서 링크/파일/텍스트 입력| WEB["A: web/ 대시보드"]
+    EXT --> INTAKE["A: POST /v1/intakes<br/>PageEvidencePayload"]
+    WEB --> INTAKE
+    INTAKE --> PLATFORM["A: platform-agents.js<br/>Instagram·Threads 원문 추출"]
+    PLATFORM --> BRIDGE["B: bridge_server.py (Flask)<br/>Node→Python 호출"]
+    BRIDGE --> EXTRACT["B: extraction_agent.py<br/>SavedContext"]
+    EXTRACT --> NORM["B: normalization_agent.py<br/>8종 자격조건 + raw_quote/span<br/>content_category 분류"]
+    NORM -->|opportunity| ELIG["C: eligibility_agent.py<br/>충족/불충족 + 근거"]
+    ELIG --> FEAS["C: feasibility_agent.py<br/>실행 난이도"]
+    FEAS --> RANK["C: ranking_agent.py / decision_engine.py<br/>추천·우선순위"]
+    NORM -->|time_sensitive_info / general_info<br/>판정 skip| CONFIRM
+    RANK --> CONFIRM{"사용자 확인<br/>(자동 등록 없음)"}
+    CONFIRM -->|승인| EXEC["D: src/execution/agent.py<br/>Goal→Task 분해→마감 역산 Plan"]
+    EXEC --> CAL["D: CalendarTool<br/>웹 캘린더 등록"]
+    EXEC --> NOTI["D: NotificationTool<br/>예약 알림 + 정체 감지 개입"]
+    EXEC --> CHAT["D: ExecutionChat<br/>대화형 일정 조정"]
+    NORM -.저장.-> DB[("Supabase<br/>opportunities (A 스키마 + B 확장 컬럼)")]
+    BRIDGE -.저장.-> DB
 ```
 
-핵심: **B의 출력(NormalizationResult)이 C의 유일한 입력**이고, **C의 출력이 D의
-유일한 입력**이다. 중간 단계 스키마가 깨지면 뒤 단계 전체가 멈춘다.
-
-### 1-1. 중요: 사용자는 지원사업만 저장하지 않는다
-
-실제 테스트로 확인된 문제. 사용자가 저장하는 건 공모전/지원사업만이 아니라 —
-인스타 정보성 게시물(툴 소개, 팁), 행사/티켓 판매 공지처럼 **자격조건은 없지만
-마감은 있는 것**, 완전히 정보성인 것까지 다양하다. 이걸 전부 "지원사업"처럼
-취급해 C에게 넘기면 판정 자체가 무의미하거나 왜곡된다.
-
-그래서 `normalize()`가 8종 조건 중 뭐가 뽑혔는지로 자동 분류한 `content_category`를
-`NormalizationResult`에 포함한다 (별도 분류기 없이, 이미 하는 추출의 부산물):
-
-| content_category | 의미 | 라우팅 |
-|---|---|---|
-| `opportunity` | 개인 자격조건(나이/지역/신분/소득/중복/병역) 있음 | C의 적격 판정 필요 → 기존 흐름 |
-| `time_sensitive_info` | 자격조건은 없지만 마감/기간은 있음 (예: 행사 티켓 판매기간) | **C 판정 skip**, D가 마감만 추적해 알림 |
-| `general_info` | 조건도 마감도 없음 (예: 툴 소개, 팁) | **C 판정 skip**, D가 마감 없이 "해볼래?" 형태로 제안 |
-
-**A/D에게 요청**: Supervisor가 `content_category`를 보고 `opportunity`만 C로 보내고
-나머지는 D로 바로 라우팅하도록 구현 필요. D의 `planning_agent.py`도 "마감이 있는
-일정"뿐 아니라 "마감 없는 실행 제안"까지 다루도록 설계가 필요함 — Project.md의
-"저장은 했는데 실행은 안 하는 청년" 문제가 지원사업에만 해당하는 게 아니라는 뜻.
+핵심: **Node(A)는 원문 추출까지만** 하고, **자격조건 구조화는 반드시 Python normalize()를
+거친다.** C와 D는 이미 이 8종 조건 구조를 입력으로 완전히 구현되어 있으므로, 이 계약을
+우회하거나 다른 포맷으로 대체하면 C/D의 기존 코드가 깨진다.
 
 ## 2. 역할 ↔ 모듈 매핑
 
-| 담당 | 역할 | 모듈 | 상태 |
+| 담당 | 역할 | 위치 | 상태 |
 |---|---|---|---|
-| A 강옥일 | Supervisor, Profile/Interest Agent, models.py 소유 | `src/supervisor.py`, `src/profile_agent.py`, `src/models.py` | stub |
-| **B 신민서** | **Extraction, Normalization, 공고 데이터** | `src/extraction_agent.py`, `src/normalization_agent.py`, `data/opportunities.json` | **구현 대상** |
-| C 엄세연 | Eligibility, Feasibility, Ranking | `src/eligibility_agent.py`, `src/feasibility_agent.py`, `src/ranking_agent.py` | stub |
-| D 김나연 | Planning, Execution Chat, Quest/Todo, 캘린더 | `src/planning_agent.py`, `src/execution_chat.py`, `src/quest_todo.py`, `src/calendar_agent.py` | stub |
-| E 지수정 | Frontend | `app/streamlit_app.py` | stub |
+| A | Chrome Extension, Intake API, 플랫폼별 원문 추출, workflow 상태머신 | `services/keep-web/` | **구현 완료** |
+| **B** | **정규화 브릿지, 8종 자격조건 구조화, DB 저장** | `src/bridge_server.py`, `src/extraction_agent.py`, `src/normalization_agent.py`, `src/db.py` | **구현 완료** |
+| C | 적격 판정, 실행 가능성, 추천/랭킹 | `src/eligibility_agent.py`, `src/feasibility_agent.py`, `src/ranking_agent.py`, `src/decision_engine.py` | **구현 완료** |
+| D | Task 분해, 마감 역산, Calendar/Notification, 대화형 조정 | `src/execution/` (+ `planning_agent.py` 등 얇은 진입점) | **구현 완료** |
+| E | Frontend | `app/streamlit_app.py` 또는 `services/keep-web/web/` | 미착수 |
+| A | 공용 스키마 정식화 | `src/models.py` | draft 단계 |
 
 ## 3. 공용 계약 (Contracts)
 
-이관 전까지는 각 모듈 상단에 draft로 정의하고, A가 `src/models.py`로 통합한다.
+- **PageEvidencePayload** (A 출력, 브릿지 입력): `source_url`, `canonical_url`, `platform`,
+  `page_title`, `body_text`, `links`, `published_at`, `evidence`, `captured_at`. Instagram/
+  Threads 로그인월은 `capture_status: ACCESS_REQUIRED`로 표시되고 우회하지 않는다(R6).
+- **SavedContext** (B, `body_text` → 정제된 원문): `source_type: link/file/image/text/
+  extension`, `status: ok/partial/failed` 필수 (R3).
+- **NormalizationResult** (B, C의 입력): `content_category`(opportunity/time_sensitive_info/
+  general_info) + 자격조건 8종 리스트. 조건마다 `raw_quote` + `span` 필수 (R2, 가장 중요).
+  모르면 `operator="unknown"` (R4). `_verify_grounding()`이 원문에 없는 인용을 코드로
+  걸러낸다 — LLM(Gemini) 출력이 이 검증을 반드시 통과해야 채택된다.
+- **EligibilityVerdict / FeasibilityVerdict / RankingResult** (C 출력, D의 입력 조건):
+  조건별 충족 여부 + 근거. 판정 로직은 C에게만 있다 (R1).
+- **ExecutionContext → Plan/Task/CalendarEvent/Notification** (D): 마감 역산 일정,
+  Task 상태(todo/in_progress/done/overdue/blocked), 알림.
 
-- **SavedContext** (B 출력 #1): 사용자가 저장한 원본 → 정제된 텍스트. `source_type: link/file/image/text`, `status: ok/partial/failed` 필수 (R3). 로그인월/JS SPA(예: Instagram)는 실패 처리 + 스크린샷 유도.
-- **NormalizationResult** (B 출력 #2): `content_category`(opportunity/time_sensitive_info/general_info, 1-1 참고) + 자격조건 8종 리스트. `content_category=opportunity`일 때만 C의 입력으로 의미가 있음. 조건마다 `raw_quote` + `span` 필수 (R2, 가장 중요). 모르면 `operator="unknown"` (R4).
-- **EligibilityVerdict** (C 출력, D의 입력 조건): 조건별 충족 여부 + 근거. 판정 로직은 C에게만 있다 (R1).
-- **Plan / Quest** (D 출력): 마감 역산 일정, Quest/Todo 상태.
+## 4. Node ↔ Python 브릿지 (핵심 설계)
 
-## 4. 기술 스택 및 실행 방식
+Node의 `server/workflow.js`가 NORMALIZING 단계에서 자체 3종 카테고리 분류기 대신
+`src/bridge_server.py`(Flask, 기본 포트 5001)를 호출한다. 브릿지는 `extraction_agent.py`/
+`normalization_agent.py`를 그대로 감싸기만 하고, 결과를 Supabase `opportunities` 테이블에
+B가 추가한 `content_category`/`conditions` 컬럼으로 저장한다. A의 기존 카드 필드
+(title/summary/category/deadline)는 조건에서 유도해 함께 채워 UI가 그대로 동작하게 한다.
 
-- Python 3.11+, pydantic v2 (스키마 검증은 전 구간 공통)
-- **로컬 우선**: LLM 호출부는 provider 교체가 쉽도록 인터페이스(Protocol) 뒤에 숨겨둔다
-- **LLM 제공자 (2026-08-13 업데이트)**: AWS 채택 여부가 팀 차원에서 아직 불확실. B는
-  우선 **Gemini API**(`gemini-flash-latest`, `.env`의 `GEMINI_API_KEY`)로 실제 연동을
-  붙였다 — 더 이상 mock이 아니라 진짜 LLM 호출이 도는 상태. AWS로 확정되면
-  `BedrockVisionLLMClient`/`BedrockNormalizationLLMClient`를 추가하고 기본 선택 로직
-  (`_default_vision_client()`, `_default_llm_client()`)만 바꾸면 된다 — 인터페이스
-  시그니처는 그대로.
-  - 워크샵(Workshop-Healthcare-AgentCore)의 **Supervisor + Agent-as-Tool** 패턴은
-    provider와 무관하게 그대로 유효 (A가 각 에이전트를 `@tool`로 감싸 호출)
-  - Memory: 세션 내 단기 기억 + 사용자 선호/저장이력 장기 기억 (D의 추적 기능과 연결 가능) — AWS 확정 시 검토
-  - Observability: 트레이스를 데모/발표에 활용 — AWS 확정 시 검토
-- 데이터: 로컬 JSON (`data/opportunities.json`), DB 없음
-- UI: Streamlit (E)
+상세 이유와 단계별 실행 순서는 `docs/merge_plan_a_b.md` 참고.
 
-## 5. 배포 단계
+## 5. 기술 스택
 
-1. **지금 (AWS 없음)**: 전 구간 로컬 실행, LLM은 mock, 파일 기반 데이터
-2. **AWS 발급 후**: extraction/normalization의 LLM 호출부를 Bedrock+Strands로 교체, 필요 시 AgentCore Runtime에 배포
-3. **최종 데모**: Streamlit 앱 하나로 전체 플로우 시연 (로컬 또는 EC2/Runtime)
+- **Node**: Node.js 20, 순수 http 모듈(프레임워크 없음), Chrome Extension Manifest V3
+- **Python**: 3.11+, pydantic v2, Flask(브릿지), pypdf, requests+beautifulsoup4
+- **LLM**: Gemini API(`gemini-flash-latest`) — AWS 채택이 팀 차원에서 아직 불확실해 우선
+  채택. 인터페이스(Protocol)로 감싸져 있어 AWS 확정 시 구현체만 교체 가능
+- **DB**: Supabase(Postgres) — `profiles`/`auth.users`(A, 실사용자 인증) +
+  `intakes`/`opportunities`(A 스키마, B가 `content_category`/`conditions` 컬럼 확장).
+  RLS 활성화, 서버 코드는 secret 키로 우회
+- **UI**: 미정 (Node `web/` 대시보드 또는 Streamlit)
 
-## 6. 시상 기준과의 연결 (참고)
+## 6. 배포 단계
 
-- **Best Agentic Innovator**: R1/R2/R6 규칙 기반의 "근거 있는 자율성" — 판정 근거를 원문으로 제시 가능한 점이 차별화
-- **Autonomous Excellence**: Supervisor + Agent-as-Tool 멀티에이전트 워크플로우, 메모리로 "저장 후 미실행" 문제 추적
-- **Smart Workflow**: 5인 역할의 명확한 스키마 경계와 협업 구조 자체가 강점
+1. **지금**: Node 서비스는 메모리 저장소로도 동작(서버 재시작 시 소실), Python은 Supabase
+   연동 완료. 브릿지 연결 후 Node도 Supabase에 영구 저장됨
+2. **다음**: 사용자 인증(Supabase Auth, A가 이미 연동), Extension↔서버↔Python 브릿지
+   end-to-end 테스트
+3. **최종 데모**: Extension으로 Keep → 브릿지 통해 8종 조건 구조화 → C 판정 → 사용자 확인
+   → D가 Calendar/Notification 등록까지 한 번에 시연
+
+## 7. 시상 기준과의 연결 (참고)
+
+- **Best Agentic Innovator**: R1/R2/R6 기반 "근거 있는 자율성" + C/D가 이미 완전히 동작하는
+  멀티에이전트 판정·실행 체인을 구현했다는 점
+- **Autonomous Excellence**: Extension→정규화→판정→실행까지 이어지는 end-to-end 자동화,
+  D의 정체 감지·개입 알림처럼 "저장 후 미실행" 문제를 능동적으로 추적하는 기능
+- **Smart Workflow**: 5인 역할의 명확한 계약 경계(특히 8종 조건 구조를 C/D가 그대로
+  재사용)와 서로 다른 기술 스택(Node/Python)을 브릿지로 깔끔하게 연결한 협업 구조
