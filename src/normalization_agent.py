@@ -14,16 +14,28 @@ Project.md 규칙 준수 (특히 R2가 가장 중요):
       임의 해석하지 않는다.
 - R5: 나이/기간 계산 등은 LLM이 아닌 순수 함수(정규식 + 파이썬 로직)로 처리한다.
 
+LLM 제공자: AWS 채택이 아직 불확실해서 Gemini API로 실제 LLM 연동을 붙였다 (extraction_agent.py와
+동일한 이유). `.env`에 GEMINI_API_KEY가 없으면 자동으로 MockNormalizationLLMClient로 폴백한다.
+Gemini가 뭘 반환하든 `_verify_grounding()`이 원문에 없는 raw_quote를 무조건 걸러내므로, LLM
+제공자가 바뀌어도 R2 안전장치는 그대로 유지된다.
+
 주의: 아래 스키마는 초안이다. A가 src/models.py로 통합하면 그쪽 import로 교체한다.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from enum import Enum
 from typing import Any, Literal, Optional, Protocol
 
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types as genai_types
 from pydantic import BaseModel
+
+load_dotenv()
 
 
 # --- 초안 스키마 (A의 models.py로 이관 예정) ---------------------------------
@@ -283,6 +295,65 @@ class MockNormalizationLLMClient:
         return results
 
 
+_NORMALIZATION_PROMPT = """다음은 청년 대상 공고/게시물 원문입니다. 아래 6가지 자격조건 타입 중
+실제로 원문에 언급된 것만 추출해서 JSON 배열로 반환하세요.
+
+타입: region, status, income, duplicate, military, etc
+
+주의: age(나이)와 period(신청기간)는 이 작업에서 절대 추출하지 마세요 — 별도의 정규식
+로직이 전담합니다. age/period를 반환해도 무시되니 포함시키지 마세요.
+
+규칙 (반드시 지킬 것):
+- raw_quote는 원문에 있는 문장/구절을 "글자 그대로" 복사해야 합니다. 절대 바꿔쓰거나
+  요약하거나 다른 표현으로 바꾸지 마세요 — 나중에 코드가 원문에 실제로 존재하는
+  부분 문자열인지 검증하며, 조금이라도 다르면 그 조건은 통째로 버려집니다.
+- 조건의 구체적인 수치나 범위를 원문만으로 확신할 수 없으면 operator를 "unknown"으로,
+  value를 null로 두세요. 추측해서 채우지 마세요.
+- 확실한 범위/값을 알 수 있으면 operator를 gte/lte/between/equals/in 중 하나로, value를 채우세요.
+- 원문에 없는 조건은 절대 만들어내지 마세요.
+- 자격조건이 전혀 없으면 빈 배열 []을 반환하세요.
+
+원문:
+---
+{raw_text}
+---
+
+JSON 배열만 반환하세요: [{{"type": "...", "operator": "...", "value": ..., "raw_quote": "..."}}]
+"""
+
+
+class GeminiNormalizationLLMClient:
+    """Gemini(gemini-flash-latest) 기반 실제 조건 후보 추출.
+
+    여기서 뭘 반환하든 normalize()의 _verify_grounding()이 원문에 없는 raw_quote를
+    무조건 걸러내므로, LLM이 규칙을 안 지켜도(요약/재작성해도) R2는 코드로 지켜진다.
+    """
+
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-flash-latest"):
+        api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다 (.env 파일 확인)")
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
+
+    def extract_conditions(self, raw_text: str) -> list[dict]:
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=_NORMALIZATION_PROMPT.format(raw_text=raw_text),
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        data = json.loads(response.text)
+        if not isinstance(data, list):
+            return []
+        return data
+
+
+def _default_llm_client() -> NormalizationLLMClient:
+    if os.environ.get("GEMINI_API_KEY"):
+        return GeminiNormalizationLLMClient()
+    return MockNormalizationLLMClient()
+
+
 # --- 메인 정규화 로직 ---------------------------------------------------------
 
 
@@ -300,7 +371,7 @@ def normalize(
             notes="raw_text가 비어있음",
         )
 
-    llm_client = llm_client or MockNormalizationLLMClient()
+    llm_client = llm_client or _default_llm_client()
     conditions: list[EligibilityCondition] = []
     dropped_count = 0
 
@@ -308,9 +379,15 @@ def normalize(
     conditions.extend(_extract_age_conditions(raw_text))
     conditions.extend(_extract_period_conditions(raw_text))
 
-    # 2) LLM(현재는 mock) 후보 제안 + R2 근거 검증
+    # 2) LLM(Gemini, 키 없으면 mock) 후보 제안 + R2 근거 검증
     try:
         for candidate in llm_client.extract_conditions(raw_text):
+            # R5 방어: 프롬프트로 age/period를 빼달라고 요청했지만, LLM이 지시를
+            # 무시할 수도 있으므로 코드로도 한번 더 막는다 — 나이/기간은 정규식(순수
+            # 함수)만 담당해야 하고, LLM이 중복으로 뽑으면 같은 조건이 서로 다른
+            # raw_quote로 두 번 나타나는 문제가 생긴다 (실제로 겪음).
+            if candidate.get("type") in ("age", "period"):
+                continue
             span = _verify_grounding(candidate["raw_quote"], raw_text)
             if span is None:
                 dropped_count += 1

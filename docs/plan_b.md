@@ -79,12 +79,19 @@ FILE(PDF) 입력 경로를 추가하게 된 계기였다.
 - [ ] status가 `partial`/`failed`인 케이스를 C/D/E가 UI에서 어떻게 다뤄야 하는지 합의 (예: `failed`면 사용자에게 재입력 요청)
 - [ ] `docs/personas.md`에서 발견한 온보딩 소득구간 설계 이슈(퍼센트 세분화 필요) A/C와 논의
 
-## Day 2 — AWS 발급 후
+### 6. Gemini API 실연동 — ✅ 완료 (2026-08-13, AWS 채택 불확실로 우선 전환)
+- `.env`의 `GEMINI_API_KEY` 유무로 mock/Gemini 자동 스위치 (`_default_vision_client()`, `_default_llm_client()`)
+- `GeminiVisionLLMClient`: 실제 스크린샷에서 텍스트 추출 검증 완료 (테스트 이미지로 확인)
+- `GeminiNormalizationLLMClient`: mock 대비 region/status 등에서 operator/value까지 정교하게 채움 확인. `_verify_grounding()`은 그대로 유지되므로 LLM이 원문에 없는 걸 지어내도 코드가 걸러냄 (R2 안전장치는 provider 무관)
+- **주의**: 처음엔 Gemini가 age/period까지 중복으로 뽑아내는 문제 발생(R5 위반 — 정규식과 LLM이 같은 조건을 서로 다른 raw_quote로 두 번 생성) → 프롬프트에서 age/period 제외 요청 + 코드에서도 한번 더 필터링(`candidate["type"] in ("age","period")`는 무시)해서 이중 방어
+- 모델명 `gemini-2.0-flash`가 이미 deprecated되어 있어서 `gemini-flash-latest` alias로 사용 — 향후 모델 세대교체에 자동 대응하기 위함
 
-- [ ] `MockVisionLLMClient` → 실제 Bedrock Claude(vision) 클라이언트로 교체 (`VisionLLMClient` 인터페이스는 이미 맞춰져 있어 구현체만 교체하면 됨)
-- [ ] `MockNormalizationLLMClient` → 실제 Bedrock Claude 클라이언트로 교체, 단 `_verify_grounding()` 검증은 그대로 유지 (LLM이 헛소리해도 코드가 걸러냄)
+## Day 2 — AWS 채택이 최종 확정되면 (아직 불확실)
+
+- [ ] `GeminiVisionLLMClient`/`GeminiNormalizationLLMClient`와 나란히 `BedrockVisionLLMClient`/`BedrockNormalizationLLMClient` 추가, `_default_*_client()`의 우선순위만 조정 (인터페이스는 이미 provider 무관하게 설계되어 있어 추가 비용이 낮음)
 - [ ] Strands `@tool`로 `extract()`, `normalize()`를 감싸서 A의 Supervisor에 연결
 - [ ] 필요 시 AgentCore Runtime에 배포 (워크샵 022 문서 절차: Docker `--platform linux/arm64` 빌드 → ECR push → `create_agent_runtime`)
+- [ ] Gemini로 이미 실사용 검증된 코드이므로, AWS 미확정 시에도 Gemini로 최종 데모까지 갈 수 있음 — 이제 AWS는 "필수"가 아니라 "선택지"
 
 ## 리스크 & 체크포인트
 
@@ -92,5 +99,6 @@ FILE(PDF) 입력 경로를 추가하게 된 계기였다.
 |---|---|
 | 실제 20건 수집이 예상보다 오래 걸림 | Day 1 오전에 최우선 처리, 오후엔 최소 10건이라도 확보해 파이프라인 검증 먼저 진행 |
 | C가 기대하는 스키마와 어긋남 | Day 1 저녁에 반드시 실물 JSON으로 싱크, 말로만 합의하지 않기 |
-| mock LLM 결과가 너무 빈약해 데모가 어색함 | `_KEYWORD_HINTS` 보강 + 정규식 패턴 확장으로 커버리지 높이기 (완벽한 정확도보다 "근거 인용이 항상 진짜"라는 R2 원칙을 데모 포인트로 삼기) |
-| AWS 발급이 늦어짐 | mock 인터페이스가 이미 실제 인터페이스와 동일한 시그니처이므로 교체만 하면 됨 — 늦어져도 로컬 데모는 항상 가능 |
+| ~~mock LLM 결과가 너무 빈약해 데모가 어색함~~ | **해결됨** — Gemini API 실연동으로 mock보다 훨씬 정교한 결과 (2026-08-13) |
+| AWS 채택 여부가 팀 차원에서 불확실 | Gemini로 이미 실사용 가능한 파이프라인을 만들어둬서, AWS가 최종 확정 안 되거나 늦어져도 B 파트는 최종 데모까지 문제없음. 인터페이스가 provider 무관하게 설계되어 있어 나중에 AWS로 바꿔도 교체 비용 낮음 |
+| API 키 관리 | `.env`는 `.gitignore`에 포함되어 커밋되지 않음. 팀원 각자 `.env.example`을 `.env`로 복사해 자기 키를 넣어야 함 — 키 공유 방식은 팀과 별도 협의 필요 |

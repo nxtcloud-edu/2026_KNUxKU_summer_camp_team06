@@ -74,6 +74,11 @@
 - LLM: AWS Bedrock (Claude) + Strands Agents SDK
   - ⚠️ 지금은 AWS 계정이 없다. 대회 당일 발급 예정
   - **따라서 LLM 호출 부분은 인터페이스만 만들고, 지금은 목(mock)으로 동작하게 한다**
+  - **[2026-08-13 업데이트, B 파트]** AWS 채택 여부가 아직 팀 차원에서 불확실해서,
+    B(extraction/normalization)는 우선 **Gemini API**로 실제 LLM 연동을 붙였다
+    (mock 대신 실제 호출). 인터페이스(`VisionLLMClient`, `NormalizationLLMClient`)는
+    그대로라서 AWS로 확정되면 구현체만 교체하면 된다. 다른 파트도 동일하게 판단이
+    필요하면 이 방식(인터페이스 고정 + provider는 환경변수로 스위치)을 참고할 것.
 - 데이터: 로컬 JSON 파일 (DB 없음)
 - 검증: pydantic v2
 - HTTP: requests + beautifulsoup4

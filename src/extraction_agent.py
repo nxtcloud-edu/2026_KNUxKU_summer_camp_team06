@@ -15,12 +15,20 @@ FILE 지원 배경: data/opportunities.json 20건을 실제로 수집하면서 �
 신뢰도가 낮아 지금은 의도적으로 미지원 — 로그인 필요 페이지와 동일하게 "실패 처리 +
 스크린샷 업로드 유도"로 우회한다 (R6와 동일한 원칙: 안 되는 건 억지로 파싱하지 않는다).
 
+LLM 제공자: AWS 계정 발급 여부가 아직 불확실해서, 우선 Gemini API로 실제 LLM 연동을
+붙였다 (Project.md 원래 계획은 Bedrock+Strands였으나 AWS 채택이 확정되지 않아 임시로
+대체 — AWS로 확정되면 BedrockVisionLLMClient를 추가하고 기본값만 바꾸면 된다.
+VisionLLMClient 인터페이스는 그대로 유지되므로 교체 비용이 낮다). `.env`에
+GEMINI_API_KEY가 없으면 자동으로 MockVisionLLMClient로 폴백한다.
+
 주의: 아래 SavedContext/SourceType/ExtractionStatus는 초안이다.
 A가 src/models.py로 통합하면 그쪽 import로 교체한다.
 """
 
 from __future__ import annotations
 
+import mimetypes
+import os
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -28,9 +36,14 @@ from typing import Optional, Protocol
 
 import requests
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types as genai_types
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
+
+load_dotenv()
 
 
 # --- 초안 스키마 (A의 models.py로 이관 예정) ---------------------------------
@@ -81,6 +94,42 @@ class MockVisionLLMClient:
             "[MOCK OCR 결과] 이 텍스트는 실제 이미지 인식 결과가 아닙니다. "
             "AWS Bedrock 연동 후 실제 Vision LLM 호출로 교체됩니다."
         )
+
+
+_IMAGE_PROMPT = (
+    "이 이미지(스크린샷)에 보이는 텍스트를 그대로 옮겨 적어줘. 요약하거나 해석하지 말고, "
+    "보이는 글자를 그대로 전사해줘(맞춤법이나 띄어쓰기도 임의로 고치지 말 것). "
+    "텍스트가 전혀 없으면 빈 문자열만 반환해."
+)
+
+
+class GeminiVisionLLMClient:
+    """Gemini(gemini-flash-latest) 기반 실제 이미지 텍스트 추출."""
+
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-flash-latest"):
+        api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다 (.env 파일 확인)")
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
+
+    def extract_text_from_image(self, image_path: str) -> str:
+        image_bytes = Path(image_path).read_bytes()
+        mime_type = mimetypes.guess_type(image_path)[0] or "image/png"
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=[
+                genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                _IMAGE_PROMPT,
+            ],
+        )
+        return response.text or ""
+
+
+def _default_vision_client() -> VisionLLMClient:
+    if os.environ.get("GEMINI_API_KEY"):
+        return GeminiVisionLLMClient()
+    return MockVisionLLMClient()
 
 
 # --- 추출 로직 ----------------------------------------------------------------
@@ -203,7 +252,7 @@ def extract_from_text(raw_text: str) -> SavedContext:
 def extract_from_image(
     image_path: str, llm_client: Optional[VisionLLMClient] = None
 ) -> SavedContext:
-    llm_client = llm_client or MockVisionLLMClient()
+    llm_client = llm_client or _default_vision_client()
     try:
         text = llm_client.extract_text_from_image(image_path)
     except Exception as e:  # noqa: BLE001 - 외부 I/O 경계, 실패를 status로 표현
@@ -222,12 +271,16 @@ def extract_from_image(
             error_reason="이미지에서 텍스트를 찾지 못함",
         )
 
+    # mock 사용 중이면 여전히 "실제 결과 아님"을 partial로 명시한다 (R3).
+    # GEMINI_API_KEY가 있으면 _default_vision_client()가 이미 Gemini를 골랐으므로
+    # 여기 도달했을 때 mock인 경우는 키가 없을 때뿐이다.
+    is_mock = isinstance(llm_client, MockVisionLLMClient)
     return SavedContext(
         source_type=SourceType.IMAGE,
         source_value=image_path,
         raw_text=text.strip(),
-        status=ExtractionStatus.PARTIAL if isinstance(llm_client, MockVisionLLMClient) else ExtractionStatus.OK,
-        error_reason="mock 클라이언트 사용 중 — 실제 결과 아님" if isinstance(llm_client, MockVisionLLMClient) else None,
+        status=ExtractionStatus.PARTIAL if is_mock else ExtractionStatus.OK,
+        error_reason="mock 클라이언트 사용 중 — 실제 결과 아님(.env에 GEMINI_API_KEY 필요)" if is_mock else None,
     )
 
 

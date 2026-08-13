@@ -33,12 +33,32 @@
         ]
       },
       {
-        "type": "income",
+        "type": "status",
         "operator": "unknown",
+        "raw_quote": "구 분 | 차상위 이하",
+        "span": [
+          41,
+          53
+        ]
+      },
+      {
+        "type": "income",
+        "operator": "lte",
+        "value": "기준 중위소득 50%",
         "raw_quote": "가구소득 | 기준 중위소득 50% 이하",
         "span": [
           54,
           75
+        ]
+      },
+      {
+        "type": "income",
+        "operator": "gte",
+        "value": "월 10만원",
+        "raw_quote": "소득기준 | 월 10만원 이상 근로·사업소득 발생",
+        "span": [
+          102,
+          129
         ]
       }
     ],
@@ -108,7 +128,8 @@
       },
       {
         "type": "region",
-        "operator": "unknown",
+        "operator": "equals",
+        "value": "강원특별자치도",
         "raw_quote": "공고일 기준(2026년 02월 09일), 본인의 주민등록상 주소지가 강원특별자치도",
         "span": [
           26,
@@ -118,19 +139,19 @@
       {
         "type": "status",
         "operator": "unknown",
-        "raw_quote": "공고일 기준(2026년 02월 09일), 미취업자",
+        "raw_quote": "공고일 기준(2026년 02월 09일), 최종학력 졸업(중퇴)자",
         "span": [
-          221,
-          248
+          161,
+          196
         ]
       },
       {
         "type": "status",
         "operator": "unknown",
-        "raw_quote": "공고일 기준(2026년 02월 09일), 최종학력 졸업(중퇴)자",
+        "raw_quote": "공고일 기준(2026년 02월 09일), 미취업자",
         "span": [
-          161,
-          196
+          221,
+          248
         ]
       },
       {
@@ -145,10 +166,19 @@
       {
         "type": "duplicate",
         "operator": "unknown",
-        "raw_quote": "중복 참여 제한사업에 참여 중인 자",
+        "raw_quote": "2024년~2025년 강원특별자치도 청년 취업준비 쿠폰 지원사업 수혜자(참여자)",
         "span": [
-          694,
-          713
+          489,
+          533
+        ]
+      },
+      {
+        "type": "duplicate",
+        "operator": "unknown",
+        "raw_quote": "강원특별자치도 청년구직활동지원금과 유사한 타 자치단체 지원사업 참여자",
+        "span": [
+          559,
+          597
         ]
       },
       {
@@ -161,12 +191,12 @@
         ]
       },
       {
-        "type": "etc",
+        "type": "duplicate",
         "operator": "unknown",
-        "raw_quote": "* 미취업 기준 : 주 36시간 미만 근로, 사업자등록증이 없는 경우",
+        "raw_quote": "중복 참여 제한사업에 참여 중인 자",
         "span": [
-          249,
-          287
+          694,
+          713
         ]
       }
     ],
@@ -222,64 +252,52 @@
       },
       {
         "type": "region",
-        "operator": "unknown",
-        "raw_quote": "□ 지원대상 : 신청일 기준 서울시 월세 거주, 19세~39세 이하 청년",
+        "operator": "equals",
+        "value": "서울시",
+        "raw_quote": "신청일 기준 서울시 월세 거주",
         "span": [
-          0,
-          40
+          9,
+          25
         ]
       },
       {
-        "type": "region",
-        "operator": "unknown",
-        "raw_quote": "ㅇ (연령) 19세 ~ 39세 이하 (주민등록등본상 1986. 1. 1. ~ 2007. 12. 31.)",
+        "type": "status",
+        "operator": "equals",
+        "value": "월세 거주",
+        "raw_quote": "신청일 기준 서울시 월세 거주",
         "span": [
-          190,
-          247
+          9,
+          25
         ]
       },
       {
         "type": "income",
-        "operator": "unknown",
-        "raw_quote": "ㅇ (소득요건) 가구당 기준 중위소득 48% 초과 ~ 150% 이하",
+        "operator": "between",
+        "value": [
+          48,
+          150
+        ],
+        "raw_quote": "가구당 기준 중위소득 48% 초과 ~ 150% 이하",
         "span": [
-          346,
+          355,
           383
         ]
       },
       {
         "type": "duplicate",
         "operator": "unknown",
-        "raw_quote": "※ 서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
+        "raw_quote": "서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
         "span": [
-          93,
+          95,
           189
         ]
       },
       {
-        "type": "duplicate",
-        "operator": "unknown",
-        "raw_quote": "ㅇ 서울 시 청년수 당을 받고  있 는 사람, 자치 구(은 평, 광 진  등) 청 년월세 지원을  수 혜 중인사람, 자립준비청년 월세․기숙사비 지원 등 유사 사업 수혜를 받고 있는 사람",
-        "span": [
-          458,
-          561
-        ]
-      },
-      {
         "type": "military",
         "operator": "unknown",
-        "raw_quote": "- 신청인이 의무복무를 마친 제대군인의 경우, 군 복무기간 고려하여 최대 42세까지 연령 상한 연장하여 신청 가능 (병적증명서 또는 병역사항이 기재된 주민등록초본 제출 필요)",
+        "raw_quote": "의무복무 제대군인 청년 대상, 군 복무기간을 고려하여 최대 3살까지 지원 연령 상한 연장",
         "span": [
-          248,
-          345
-        ]
-      },
-      {
-        "type": "military",
-        "operator": "unknown",
-        "raw_quote": "※ 의무복무 제대군인 청년 대상, 군 복무기간을 고려하여 최대 3살까지 지원 연령 상한 연장",
-        "span": [
-          41,
+          43,
           92
         ]
       }
@@ -302,10 +320,10 @@
       {
         "type": "region",
         "operator": "unknown",
-        "raw_quote": "신청일 기준 경기도에 주민등록을 두고 최근 3년 이상 계속 거주 또는 합산 10년 이상 거주중인 24세 청년",
+        "raw_quote": "신청일 기준 경기도에 주민등록을 두고 최근 3년 이상 계속 거주 또는 합산 10년 이상 거주중인",
         "span": [
           5,
-          65
+          58
         ]
       }
     ],
@@ -327,13 +345,22 @@
           154,
           165
         ]
+      },
+      {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "고립은둔 상황에 처해있는",
+        "span": [
+          6,
+          19
+        ]
       }
     ],
     "status": "ok"
   },
   {
     "opportunity_id": "opp-grant-06",
-    "content_category": "time_sensitive_info",
+    "content_category": "opportunity",
     "conditions": [
       {
         "type": "period",
@@ -345,17 +372,17 @@
         ]
       },
       {
-        "type": "etc",
-        "operator": "unknown",
-        "raw_quote": "☞ 신청자 명의의 사업자등록증을 보유하고 있지 않으며, 법인의 법률상 대표권을 가지고 있지 않은 예비창업자(기준일 : '26.1.22.)",
+        "type": "status",
+        "operator": "equals",
+        "value": "예비창업자",
+        "raw_quote": "신청자 명의의 사업자등록증을 보유하고 있지 않으며, 법인의 법률상 대표권을 가지고 있지 않은 예비창업자(기준일 : '26.1.22.)",
         "span": [
-          81,
+          83,
           157
         ]
       }
     ],
-    "status": "ok",
-    "notes": "개인 자격조건은 없지만 마감/기간이 있음 — C의 판정은 불필요, D의 일정 알림 대상"
+    "status": "ok"
   },
   {
     "opportunity_id": "opp-contest-01",
@@ -384,21 +411,22 @@
         ]
       },
       {
-        "type": "status",
-        "operator": "unknown",
-        "raw_quote": "- (예비창업자) 사업자등록을 하지 않은 전국 청년, 대학생(휴학생 포함)",
+        "type": "region",
+        "operator": "equals",
+        "value": "전국",
+        "raw_quote": "전국 지원 가능",
         "span": [
-          135,
-          176
+          99,
+          107
         ]
       },
       {
-        "type": "etc",
+        "type": "status",
         "operator": "unknown",
-        "raw_quote": "- (예비창업자) 사업자등록을 하지 않은 전국 청년, 대학생(휴학생 포함)",
+        "raw_quote": "기후테크 분야 예비창업자 또는 초기창업기업",
         "span": [
-          135,
-          176
+          111,
+          134
         ]
       }
     ],
@@ -448,19 +476,27 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "- 국내 대학 재학생 및 대학원생",
+        "operator": "in",
+        "value": [
+          "대학생",
+          "대학원생"
+        ],
+        "raw_quote": "국내 대학 재학생 및 대학원생",
         "span": [
-          138,
+          140,
           156
         ]
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "- 외국인 유학생, 휴학생 참여 가능",
+        "operator": "in",
+        "value": [
+          "외국인 유학생",
+          "휴학생"
+        ],
+        "raw_quote": "외국인 유학생, 휴학생 참여 가능",
         "span": [
-          157,
+          159,
           177
         ]
       }
@@ -484,27 +520,27 @@
       {
         "type": "status",
         "operator": "unknown",
-        "raw_quote": "- 접수 마감일 2026년 4월 30일(목) 기준, 국내외 2년제 이상 대학에 재학 또는 휴학 중인 만 28세 이하의 학생",
+        "raw_quote": "국내외 2년제 이상 대학에 재학 또는 휴학 중인 만 28세 이하의 학생",
         "span": [
-          28,
+          57,
           96
-        ]
-      },
-      {
-        "type": "status",
-        "operator": "unknown",
-        "raw_quote": "* 군 복무자, 졸업유예자 지원 가능, 현업 종사자(업종 불문) 지원 불가(아르바이트, 단기 계약직 등은 가능)",
-        "span": [
-          97,
-          159
         ]
       },
       {
         "type": "military",
         "operator": "unknown",
-        "raw_quote": "* 군 복무자, 졸업유예자 지원 가능, 현업 종사자(업종 불문) 지원 불가(아르바이트, 단기 계약직 등은 가능)",
+        "raw_quote": "군 복무자",
         "span": [
-          97,
+          99,
+          104
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "현업 종사자(업종 불문) 지원 불가(아르바이트, 단기 계약직 등은 가능)",
+        "span": [
+          119,
           159
         ]
       }
@@ -540,6 +576,36 @@
           186,
           215
         ]
+      },
+      {
+        "type": "region",
+        "operator": "equals",
+        "value": "아시아",
+        "raw_quote": "아시아 국적",
+        "span": [
+          124,
+          130
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "equals",
+        "value": "학사생",
+        "raw_quote": "학사생",
+        "span": [
+          142,
+          145
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "equals",
+        "value": "대학원생",
+        "raw_quote": "대학원생",
+        "span": [
+          181,
+          185
+        ]
       }
     ],
     "status": "ok"
@@ -559,29 +625,72 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "• 대학 재/휴학생 (전공무관)",
+        "operator": "in",
+        "value": [
+          "대학생"
+        ],
+        "raw_quote": "대학생 (졸업생, 대학원생 지원불가)",
         "span": [
-          116,
-          133
+          70,
+          90
         ]
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "- 모집대상 : 대학생 (졸업생, 대학원생 지원불가)",
+        "operator": "in",
+        "value": [
+          "재학생",
+          "휴학생"
+        ],
+        "raw_quote": "대학 재/휴학생 (전공무관)",
         "span": [
-          61,
-          90
+          118,
+          133
         ]
       },
       {
         "type": "etc",
         "operator": "unknown",
-        "raw_quote": "• 3개월 간 성실한 태도로 책임감 있게 활동 가능한 분",
+        "raw_quote": "F&B 마케팅 혹은 음료 분야에 관심이 많은 분",
         "span": [
-          193,
+          138,
+          164
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "SNS 활동 및 트렌드 탐색 활발한 분",
+        "span": [
+          169,
+          190
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "3개월 간 성실한 태도로 책임감 있게 활동 가능한 분",
+        "span": [
+          195,
           224
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "개인 채널 운영자 (유튜브, 블로그, 인스타그램 등)",
+        "span": [
+          238,
+          267
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "영상/포토샵 편집 경험자",
+        "span": [
+          272,
+          285
         ]
       }
     ],
@@ -589,7 +698,7 @@
   },
   {
     "opportunity_id": "opp-supporters-02",
-    "content_category": "time_sensitive_info",
+    "content_category": "opportunity",
     "conditions": [
       {
         "type": "period",
@@ -599,10 +708,30 @@
           50,
           77
         ]
+      },
+      {
+        "type": "status",
+        "operator": "in",
+        "value": [
+          "대학생"
+        ],
+        "raw_quote": "대학생 누구나(전공 무관)",
+        "span": [
+          16,
+          30
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "2026. 4. 4.(토) 간담회 참석 가능자",
+        "span": [
+          119,
+          144
+        ]
       }
     ],
-    "status": "ok",
-    "notes": "개인 자격조건은 없지만 마감/기간이 있음 — C의 판정은 불필요, D의 일정 알림 대상"
+    "status": "ok"
   },
   {
     "opportunity_id": "opp-supporters-03",
@@ -610,10 +739,14 @@
     "conditions": [
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "청소년에 관심이 있는 대학생 및 휴학생",
+        "operator": "in",
+        "value": [
+          "대학생",
+          "휴학생"
+        ],
+        "raw_quote": "대학생 및 휴학생",
         "span": [
-          191,
+          203,
           212
         ]
       }
@@ -635,11 +768,60 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "- 대학생 재·휴학생",
+        "operator": "in",
+        "value": [
+          "재학생",
+          "휴학생"
+        ],
+        "raw_quote": "대학생 재·휴학생",
         "span": [
-          68,
+          70,
           79
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "오프라인 발대식 (2월 중) 및 매월 온라인 미팅 1회 참석 가능한 사람",
+        "span": [
+          82,
+          122
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "영어 문서 해석 및 글쓰기 역량 우수자",
+        "span": [
+          244,
+          265
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "블로그 마케팅, 키워드 마케팅에 대한 이해도가 있는 사람",
+        "span": [
+          268,
+          299
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "사회·경제·문화 트렌드에 관심 있는 사람",
+        "span": [
+          302,
+          324
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "개인 블로그 운영 경험자",
+        "span": [
+          327,
+          340
         ]
       }
     ],
@@ -660,29 +842,52 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
-        "raw_quote": "· 문화 콘텐츠에 관심있는 모든 국내 대학생 (휴학생 포함)",
+        "operator": "in",
+        "value": [
+          "대학생",
+          "휴학생"
+        ],
+        "raw_quote": "문화 콘텐츠에 관심있는 모든 국내 대학생 (휴학생 포함)",
         "span": [
-          75,
+          77,
           108
+        ]
+      },
+      {
+        "type": "region",
+        "operator": "equals",
+        "value": "서울",
+        "raw_quote": "매월 1회 이상 서울 인근 지정 오프라인 행사 참석 가능자",
+        "span": [
+          111,
+          143
         ]
       },
       {
         "type": "status",
         "operator": "unknown",
-        "raw_quote": "· 2026년 2월 졸업예정자/기졸업자/대학원생이 아닌 분",
+        "raw_quote": "2026년 2월 졸업예정자/기졸업자/대학원생이 아닌 분",
         "span": [
-          223,
+          225,
           255
         ]
       },
       {
         "type": "military",
         "operator": "unknown",
-        "raw_quote": "· 병역 또는 교환학생 예정이 없는 분",
+        "raw_quote": "병역 또는 교환학생 예정이 없는 분",
         "span": [
-          256,
+          258,
           277
+        ]
+      },
+      {
+        "type": "duplicate",
+        "operator": "unknown",
+        "raw_quote": "참여 중인 다른 대외활동이 없는 분",
+        "span": [
+          280,
+          299
         ]
       }
     ],
@@ -700,21 +905,31 @@
     "content_category": "opportunity",
     "conditions": [
       {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "국민내일배움카드 소지자",
+        "span": [
+          0,
+          12
+        ]
+      },
+      {
         "type": "status",
+        "operator": "equals",
+        "value": "미취업자",
+        "raw_quote": "고용보험에 가입되어 있지 않은 미취업자 (재직자 참여 불가)",
+        "span": [
+          13,
+          46
+        ]
+      },
+      {
+        "type": "etc",
         "operator": "unknown",
         "raw_quote": "9시부터 18시까지 진행되는 실시간 강의에 참여 가능하신 분 (대학생의 경우 휴학 후 참여 가능)",
         "span": [
           47,
           101
-        ]
-      },
-      {
-        "type": "status",
-        "operator": "unknown",
-        "raw_quote": "고용보험에 가입되어 있지 않은 미취업자 (재직자 참여 불가)",
-        "span": [
-          13,
-          46
         ]
       }
     ],
@@ -722,7 +937,7 @@
   },
   {
     "opportunity_id": "opp-bootcamp-03",
-    "content_category": "time_sensitive_info",
+    "content_category": "opportunity",
     "conditions": [
       {
         "type": "period",
@@ -741,10 +956,27 @@
           94,
           123
         ]
+      },
+      {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "국민내일배움카드 발급이 가능한 분",
+        "span": [
+          26,
+          44
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "PM으로 성장하기 위해 13주 동안 풀타임 교육 참여가 가능한 분 (온라인)",
+        "span": [
+          45,
+          87
+        ]
       }
     ],
-    "status": "ok",
-    "notes": "개인 자격조건은 없지만 마감/기간이 있음 — C의 판정은 불필요, D의 일정 알림 대상"
+    "status": "ok"
   },
   {
     "opportunity_id": "opp-bootcamp-04",
@@ -752,11 +984,28 @@
     "conditions": [
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "in",
+        "value": [
+          "4년제 대학 졸업자",
+          "4년제 대학 졸업예정자"
+        ],
         "raw_quote": "국내외 4년제 대학 졸업자 및 졸업 예정자 (전공 무관)",
         "span": [
           42,
           73
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "in",
+        "value": [
+          "마이스터고 졸업자",
+          "마이스터고 졸업예정자"
+        ],
+        "raw_quote": "국내 지정 마이스터고 졸업자 및 졸업예정자 (학과 무관)",
+        "span": [
+          74,
+          105
         ]
       }
     ],

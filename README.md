@@ -44,8 +44,9 @@ scripts/
 
 ## B(데이터·링크 분석) 파트 — 현재 상태
 
-- `extraction_agent.py`: 링크(requests+bs4, 실제 크롤링 동작) / 텍스트(동작) / 파일(PDF, pypdf 실제 동작 — HWP는 의도적으로 미지원, 스크린샷 유도) / 이미지(mock — 실제 비전 LLM 연동 전)
-- `normalization_agent.py`: 나이·기간은 정규식(순수 함수, R5) / 나머지 6종 조건은 키워드 기반 mock. 모든 조건은 원문에 실재하는 인용(`raw_quote`)인지 코드로 검증(`_verify_grounding`)하여 R2("근거 없이 생성 금지")를 강제함
+- `extraction_agent.py`: 링크(requests+bs4, 실제 크롤링 동작) / 텍스트(동작) / 파일(PDF, pypdf 실제 동작 — HWP는 의도적으로 미지원, 스크린샷 유도) / 이미지(**Gemini Vision 실제 동작**)
+- `normalization_agent.py`: 나이·기간은 정규식(순수 함수, R5) / 나머지 6종 조건은 **Gemini API 실제 동작**. 모든 조건은 원문에 실재하는 인용(`raw_quote`)인지 코드로 검증(`_verify_grounding`)하여 R2("근거 없이 생성 금지")를 강제함 — LLM이 뭘 반환하든 이 검증은 그대로 유지됨
+- **LLM 제공자**: AWS 채택이 팀 차원에서 아직 불확실해서 우선 **Gemini API**로 실연동함 (`.env`의 `GEMINI_API_KEY`, 키 없으면 자동으로 mock 폴백). AWS로 확정되면 구현체만 교체하면 됨 — 자세한 내용은 `docs/plan_b.md` 참고
 - **content_category 자동 분류**: 사용자는 지원사업만 저장하지 않는다(인스타 정보성 글, 행사 티켓 공지 등도 저장함) — 8종 조건 중 뭐가 뽑혔는지로 `opportunity`/`time_sensitive_info`/`general_info`를 자동 분류해서, 지원사업이 아닌 콘텐츠가 C의 적격 판정으로 잘못 넘어가지 않도록 함. 자세한 라우팅 규칙은 `ARCHITECTURE.md` 1-1절 참고
 - Instagram/TikTok처럼 로그인 없인 본문을 못 주는 SPA는 감지해서 실패 처리 + 스크린샷 유도 (겉보기엔 200 OK라도 실제로는 로그인월인 경우까지 커버)
 - 실제 공고 20건(지원사업6·공모전5·서포터즈5·부트캠프4)으로 검증 완료: **20/20 정규화 성공**, 8종 조건 전 타입 실제 등장 확인
@@ -55,11 +56,13 @@ scripts/
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
+cp .env.example .env   # GEMINI_API_KEY= 뒤에 본인 키 붙여넣기 (Google AI Studio에서 발급)
+
 python -m src.extraction_agent       # 추출 데모
 python -m src.normalization_agent    # 정규화 데모
 python -m scripts.run_pipeline       # 20건 전체 파이프라인 검증
 ```
 
-**아직 AWS 계정이 없어서** LLM 호출부(이미지 인식, 정규화 후보 제안)는 전부 mock 인터페이스로
-동작합니다. 인터페이스 시그니처는 실제 Bedrock/Strands 연동 시와 동일하게 맞춰뒀기 때문에,
-계정 발급 후에는 구현체만 교체하면 됩니다. 자세한 계획은 `docs/plan_b.md` 참고.
+`.env`에 `GEMINI_API_KEY`가 없으면 코드가 자동으로 mock으로 폴백하니, 키가 당장 없어도
+실행은 됩니다(단, 실제 LLM 결과는 아님). 인터페이스가 provider 무관하게 설계되어 있어서
+AWS로 최종 확정되면 구현체만 교체하면 됩니다. 자세한 내용은 `docs/plan_b.md` 참고.

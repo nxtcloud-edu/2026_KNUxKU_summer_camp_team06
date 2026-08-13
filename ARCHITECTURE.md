@@ -74,11 +74,17 @@ flowchart TD
 ## 4. 기술 스택 및 실행 방식
 
 - Python 3.11+, pydantic v2 (스키마 검증은 전 구간 공통)
-- **로컬 우선**: LLM 호출부는 인터페이스만 만들고 지금은 mock으로 동작 (AWS 계정 없음)
-- 대회 마지막 날 AWS 발급 후: Bedrock(Claude) + Strands Agents SDK로 교체
-  - 워크샵(Workshop-Healthcare-AgentCore)의 **Supervisor + Agent-as-Tool** 패턴을 그대로 채택 (A가 각 에이전트를 `@tool`로 감싸 호출)
-  - Memory: 세션 내 단기 기억 + 사용자 선호/저장이력 장기 기억 (D의 추적 기능과 연결 가능)
-  - Observability: 트레이스를 데모/발표에 활용
+- **로컬 우선**: LLM 호출부는 provider 교체가 쉽도록 인터페이스(Protocol) 뒤에 숨겨둔다
+- **LLM 제공자 (2026-08-13 업데이트)**: AWS 채택 여부가 팀 차원에서 아직 불확실. B는
+  우선 **Gemini API**(`gemini-flash-latest`, `.env`의 `GEMINI_API_KEY`)로 실제 연동을
+  붙였다 — 더 이상 mock이 아니라 진짜 LLM 호출이 도는 상태. AWS로 확정되면
+  `BedrockVisionLLMClient`/`BedrockNormalizationLLMClient`를 추가하고 기본 선택 로직
+  (`_default_vision_client()`, `_default_llm_client()`)만 바꾸면 된다 — 인터페이스
+  시그니처는 그대로.
+  - 워크샵(Workshop-Healthcare-AgentCore)의 **Supervisor + Agent-as-Tool** 패턴은
+    provider와 무관하게 그대로 유효 (A가 각 에이전트를 `@tool`로 감싸 호출)
+  - Memory: 세션 내 단기 기억 + 사용자 선호/저장이력 장기 기억 (D의 추적 기능과 연결 가능) — AWS 확정 시 검토
+  - Observability: 트레이스를 데모/발표에 활용 — AWS 확정 시 검토
 - 데이터: 로컬 JSON (`data/opportunities.json`), DB 없음
 - UI: Streamlit (E)
 
