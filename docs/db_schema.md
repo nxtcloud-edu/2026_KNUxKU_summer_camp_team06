@@ -148,3 +148,24 @@ erDiagram
 
 - A의 `users` 테이블 생성 후 `saved_items.user_id`에 FK 제약 추가 (지금은 제약 없는 uuid 컬럼)
 - C/D가 각자 테이블(`eligibility_results`, `feasibility_scores`, `quests` 등) 만들 때 이 문서의 설계를 기준으로 상의
+
+## ⚠️ D 전환 시 주의: opportunities ID 타입 불일치 (2026-08-13 발견)
+
+`docs/supabase_schema.sql`(D)의 `opportunities` 테이블이 `id text primary key`(예:
+`"opp-grant-01"`, `data/opportunities.json`의 문자열 ID 형식)로 설계되어 있는데,
+**A가 이미 실제 Supabase에 만든 `public.opportunities` 테이블은 `id uuid`**다
+(`supabase/migrations/202608130001_personal_keeper.sql`). 같은 이름, 다른 타입 —
+서로 모르고 각자 설계한 결과다.
+
+**지금은 충돌 없음**: D의 실행 데모(`src/execution/demo.py`,
+`app/execution_demo_app.py`)는 아직 Supabase가 아니라 로컬 `data/opportunities.json`
+파일을 직접 읽어서 동작하므로 (`DEMO_OPP_ID = "opp-contest-02"`), 실제 DB에는
+아무 영향이 없다.
+
+**D가 로컬 JSON → Supabase로 전환할 때 반드시 확인**:
+- `docs/supabase_schema.sql`의 `opportunities(id text)`를 그대로 새 테이블로 만들지
+  말 것 — A/B가 이미 쓰고 있는 실제 `public.opportunities(id uuid)`를 재사용한다.
+- `opp-grant-01`처럼 사람이 읽기 쉬운 ID가 필요하면 PK를 대체하지 말고
+  `external_id text` 같은 별도 컬럼을 추가한다.
+- `docs/supabase_schema.sql`의 `goals`/`plans`/`tasks`가 `opportunities.id`를 FK로
+  참조하는 부분도 그 시점에 `uuid`로 맞춰야 한다.
