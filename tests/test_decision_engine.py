@@ -39,7 +39,7 @@ def _item(identifier: str, max_age: int, keyword: str, deadline_day: int):
 
 def test_top3_excludes_failed_and_orders_scores():
     profile = UserProfileDraft(
-        birth_year=2002,
+        birth_date=date(2002, 1, 1),
         interests=["AI", "마케팅"],
         weekly_available_hours=10,
         available_budget=10_000,

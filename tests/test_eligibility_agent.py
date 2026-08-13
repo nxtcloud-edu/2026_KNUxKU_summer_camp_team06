@@ -29,7 +29,7 @@ def test_age_region_and_status_pass():
         ]
     )
     verdict = evaluate_eligibility(
-        UserProfileDraft(birth_year=2002, region="서울 관악구", status="대학생 · 미취업"),
+        UserProfileDraft(birth_date=date(2002, 1, 1), region="서울 관악구", status="대학생 · 미취업"),
         result,
         date(2026, 8, 13),
     )
@@ -44,7 +44,7 @@ def test_fail_has_priority_over_unknown():
             {"type": "income", "operator": "unknown", "raw_quote": "소득 조건", "span": [8, 13]},
         ]
     )
-    verdict = evaluate_eligibility(UserProfileDraft(birth_year=2000), result, date(2026, 8, 13))
+    verdict = evaluate_eligibility(UserProfileDraft(birth_date=date(2000, 1, 1)), result, date(2026, 8, 13))
     assert verdict.overall == Verdict.FAIL
     assert [item.verdict for item in verdict.conditions] == [Verdict.FAIL, Verdict.UNKNOWN]
 
@@ -66,3 +66,17 @@ def test_failed_normalization_is_unknown():
 
 def test_empty_results_are_unknown():
     assert determine_overall_verdict([]) == Verdict.UNKNOWN
+
+
+def test_age_uses_exact_birthday_boundary():
+    result = _normalization(
+        [{"type": "age", "operator": "gte", "value": 24, "raw_quote": "만 24세 이상", "span": [0, 8]}]
+    )
+    before_birthday = evaluate_eligibility(
+        UserProfileDraft(birth_date=date(2002, 8, 14)), result, date(2026, 8, 13)
+    )
+    on_birthday = evaluate_eligibility(
+        UserProfileDraft(birth_date=date(2002, 8, 13)), result, date(2026, 8, 13)
+    )
+    assert before_birthday.overall == Verdict.FAIL
+    assert on_birthday.overall == Verdict.PASS

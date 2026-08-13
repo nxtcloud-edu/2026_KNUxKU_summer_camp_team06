@@ -24,7 +24,7 @@ OWNER: C (엄세연)
 
 ```text
 UserProfile
-  birth_year, region, status, income_bracket, interests
+  birth_date, region, status, income_bracket, interests
   major, experiences
   weekly_available_hours, available_budget, active_commitments
 

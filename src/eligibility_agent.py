@@ -37,7 +37,7 @@ class Verdict(str, Enum):
 class UserProfileDraft(BaseModel):
     """Temporary C-side profile until A publishes the shared UserProfile."""
 
-    birth_year: Optional[int] = None
+    birth_date: Optional[date] = None
     region: Optional[str] = None
     status: Optional[str] = None
     income_bracket: Optional[str] = None
@@ -65,13 +65,15 @@ class EligibilityVerdict(BaseModel):
     normalization_status: str
 
 
-def calculate_age(birth_year: int, reference_date: Optional[date] = None) -> int:
-    """Return Korean international age using year-only onboarding data."""
+def calculate_age(birth_date: date, reference_date: Optional[date] = None) -> int:
+    """Return exact international age for a full date of birth."""
 
     reference_date = reference_date or date.today()
-    age = reference_date.year - birth_year
-    if age < 0 or age > 120:
-        raise ValueError("birth_year is outside a plausible range")
+    age = reference_date.year - birth_date.year
+    if (reference_date.month, reference_date.day) < (birth_date.month, birth_date.day):
+        age -= 1
+    if birth_date > reference_date or age > 120:
+        raise ValueError("birth_date is outside a plausible range")
     return age
 
 
@@ -100,13 +102,13 @@ def evaluate_age_condition(
     condition: EligibilityCondition,
     reference_date: Optional[date] = None,
 ) -> ConditionVerdict:
-    if profile.birth_year is None:
-        return _unknown(condition, "출생연도 정보가 없어 나이 조건을 확인할 수 없습니다.")
+    if profile.birth_date is None:
+        return _unknown(condition, "생년월일 정보가 없어 나이 조건을 확인할 수 없습니다.")
 
     try:
-        user_age = calculate_age(profile.birth_year, reference_date)
+        user_age = calculate_age(profile.birth_date, reference_date)
     except ValueError as exc:
-        return _unknown(condition, f"출생연도 값이 유효하지 않습니다: {exc}")
+        return _unknown(condition, f"생년월일 값이 유효하지 않습니다: {exc}")
 
     value = condition.value
     if condition.operator == Operator.GTE and isinstance(value, (int, float)):
@@ -270,7 +272,7 @@ if __name__ == "__main__":
     data_path = Path("data/normalization_results.json")
     raw_results = json.loads(data_path.read_text(encoding="utf-8"))
     profile = UserProfileDraft(
-        birth_year=2002,
+        birth_date=date(2002, 1, 1),
         region="서울 관악구",
         status="대학 재학 · 미취업",
     )
