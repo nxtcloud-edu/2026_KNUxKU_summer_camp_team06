@@ -15,8 +15,8 @@ Chrome에서 `chrome://extensions`를 열고 개발자 모드를 켠 뒤 이 폴
 `extension/`을 압축해제된 확장 프로그램으로 로드합니다.
 
 현재 다른 로컬 서비스와 포트 충돌을 피하기 위해 KEEP:ON을 `4174`에서 실행 중입니다.
-Extension 팝업의 `KEEP:ON 서버 주소`도 `http://127.0.0.1:4174`로 맞춥니다. 팝업의
-`Google 계정 연결`을 누르기 전에 표시되는 `Supabase Redirect URL`을 Supabase
+Extension은 같은 로컬 주소로 고정되어 있으며, 팝업의 `Google 계정 연결`을 누르기 전에
+표시되는 `Supabase Redirect URL`을 Supabase
 Authentication의 Redirect URLs에 등록해야 합니다.
 
 서버가 실행되면 다음 fixture에서 로그인 없이 Keep을 재현할 수 있습니다.
