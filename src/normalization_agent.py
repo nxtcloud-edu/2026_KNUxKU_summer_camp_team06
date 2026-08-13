@@ -134,7 +134,7 @@ def _verify_grounding(
 # 먼저 매칭된 것만 채택해 같은 문구가 두 조건으로 중복 추출되지 않게 한다.
 
 _AGE_RANGE_PATTERN = re.compile(
-    r"만?\s*(\d{1,2})\s*세?(?:\([^)]{0,12}\))?\s*[~\-–]\s*(?:만\s*)?(\d{1,2})\s*세(?:\([^)]{0,12}\))?"
+    r"만?\s*(\d{1,2})\s*세?(?:\s*\([^)]{0,12}\))?\s*[~\-–]\s*(?:만\s*)?(\d{1,2})\s*세(?:\s*\([^)]{0,12}\))?"
 )
 _AGE_ISANG_IHA_PATTERN = re.compile(r"(\d{1,2})\s*세\s*이상\s*(\d{1,2})\s*세\s*이하")
 _AGE_IHA_ONLY_PATTERN = re.compile(r"만\s*(\d{1,2})\s*세\s*이하")
@@ -184,24 +184,38 @@ def _extract_age_conditions(raw_text: str) -> list[EligibilityCondition]:
 # 의도적으로 매칭하지 않는다 (없는 날짜를 추측하지 않음, R2).
 
 _PERIOD_DOT_PATTERN = re.compile(
-    r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?(?:\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+    r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
     r"\s*[~\-–]\s*"
-    r"(?:\d{4}\.\s*)?\d{1,2}\.\s*\d{1,2}\.?(?:\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+    r"(?:\d{4}\.\s*)?\d{1,2}\.\s*\d{1,2}\.?(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
 )
 _PERIOD_KOREAN_PATTERN = re.compile(
-    r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+    r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
     r"\s*[~\-–]\s*"
-    r"(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일(?:\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+    r"(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+)
+# 범위("A~B")가 아니라 "신청기한: 2026. 7. 17." 처럼 단일 마감일 하나만 있는 경우.
+# 실제로 "2026 Summer Agentic AI 캠프" 공고문 테스트 중 발견 — 범위 패턴만으로는
+# 이런 단일 날짜 마감을 아예 못 잡는 문제가 있었다. 범위 패턴이 이미 소비한 span과
+# 겹치면 건너뛴다(같은 날짜가 두 조건으로 중복 추출되지 않도록).
+_PERIOD_SINGLE_DOT_PATTERN = re.compile(
+    r"\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
+)
+_PERIOD_SINGLE_KOREAN_PATTERN = re.compile(
+    r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\s*\([^)]{1,4}\))?(?:\s*\d{1,2}:\d{2})?"
 )
 
 
 def _extract_period_conditions(raw_text: str) -> list[EligibilityCondition]:
     conditions: list[EligibilityCondition] = []
     consumed: list[tuple[int, int]] = []
-    for pattern in (_PERIOD_DOT_PATTERN, _PERIOD_KOREAN_PATTERN):
+
+    def _overlaps(span: tuple[int, int]) -> bool:
+        return any(span[0] < e and s < span[1] for s, e in consumed)
+
+    def _try(pattern: re.Pattern, operator: Operator) -> None:
         for m in pattern.finditer(raw_text):
             span = (m.start(), m.end())
-            if any(span[0] < e and s < span[1] for s, e in consumed):
+            if _overlaps(span):
                 continue
             verified = _verify_grounding(m.group(0), raw_text)
             if verified is None:
@@ -210,12 +224,19 @@ def _extract_period_conditions(raw_text: str) -> list[EligibilityCondition]:
             conditions.append(
                 EligibilityCondition(
                     type=ConditionType.PERIOD,
-                    operator=Operator.BETWEEN,
+                    operator=operator,
                     value=None,  # 실제 날짜 파싱/검증은 C 또는 별도 유틸에서 (R5: 순수 함수로)
                     raw_quote=m.group(0),
                     span=verified,
                 )
             )
+
+    # 우선순위: 범위(A~B) 먼저, 그 다음 단일 마감일
+    _try(_PERIOD_DOT_PATTERN, Operator.BETWEEN)
+    _try(_PERIOD_KOREAN_PATTERN, Operator.BETWEEN)
+    _try(_PERIOD_SINGLE_DOT_PATTERN, Operator.EQUALS)
+    _try(_PERIOD_SINGLE_KOREAN_PATTERN, Operator.EQUALS)
+
     return conditions
 
 

@@ -33,15 +33,6 @@
         ]
       },
       {
-        "type": "status",
-        "operator": "unknown",
-        "raw_quote": "구 분 | 차상위 이하",
-        "span": [
-          41,
-          53
-        ]
-      },
-      {
         "type": "income",
         "operator": "lte",
         "value": "기준 중위소득 50%",
@@ -59,6 +50,16 @@
         "span": [
           102,
           129
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "lte",
+        "value": "차상위",
+        "raw_quote": "차상위 이하",
+        "span": [
+          47,
+          53
         ]
       }
     ],
@@ -127,6 +128,15 @@
         ]
       },
       {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026년 02월 09일",
+        "span": [
+          33,
+          46
+        ]
+      },
+      {
         "type": "region",
         "operator": "equals",
         "value": "강원특별자치도",
@@ -170,6 +180,15 @@
         "span": [
           489,
           533
+        ]
+      },
+      {
+        "type": "duplicate",
+        "operator": "unknown",
+        "raw_quote": "기초생활보장제도 생계급여 및 실업급여 수급자",
+        "span": [
+          534,
+          558
         ]
       },
       {
@@ -261,13 +280,21 @@
         ]
       },
       {
-        "type": "status",
-        "operator": "equals",
-        "value": "월세 거주",
-        "raw_quote": "신청일 기준 서울시 월세 거주",
+        "type": "military",
+        "operator": "unknown",
+        "raw_quote": "의무복무 제대군인 청년 대상, 군 복무기간을 고려하여 최대 3살까지 지원 연령 상한 연장",
         "span": [
-          9,
-          25
+          43,
+          92
+        ]
+      },
+      {
+        "type": "duplicate",
+        "operator": "unknown",
+        "raw_quote": "서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
+        "span": [
+          95,
+          189
         ]
       },
       {
@@ -281,24 +308,6 @@
         "span": [
           355,
           383
-        ]
-      },
-      {
-        "type": "duplicate",
-        "operator": "unknown",
-        "raw_quote": "서울시 청년월세지원 기수혜자 및 국토교통부 청년월세 한시 특별지원 수혜 중인 자,자치구 자체 청년월세지원 사업(은평, 광진, 동작, 관악 등) 수혜 중인 자는 지원 불가",
-        "span": [
-          95,
-          189
-        ]
-      },
-      {
-        "type": "military",
-        "operator": "unknown",
-        "raw_quote": "의무복무 제대군인 청년 대상, 군 복무기간을 고려하여 최대 3살까지 지원 연령 상한 연장",
-        "span": [
-          43,
-          92
         ]
       }
     ],
@@ -347,6 +356,15 @@
         ]
       },
       {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2024. 4. 29.",
+        "span": [
+          92,
+          104
+        ]
+      },
+      {
         "type": "status",
         "operator": "unknown",
         "raw_quote": "고립은둔 상황에 처해있는",
@@ -373,8 +391,7 @@
       },
       {
         "type": "status",
-        "operator": "equals",
-        "value": "예비창업자",
+        "operator": "unknown",
         "raw_quote": "신청자 명의의 사업자등록증을 보유하고 있지 않으며, 법인의 법률상 대표권을 가지고 있지 않은 예비창업자(기준일 : '26.1.22.)",
         "span": [
           83,
@@ -422,7 +439,11 @@
       },
       {
         "type": "status",
-        "operator": "unknown",
+        "operator": "in",
+        "value": [
+          "예비창업자",
+          "초기창업기업"
+        ],
         "raw_quote": "기후테크 분야 예비창업자 또는 초기창업기업",
         "span": [
           111,
@@ -456,6 +477,21 @@
         "span": [
           206,
           239
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "in",
+        "value": [
+          "개인",
+          "팀",
+          "단체",
+          "기업"
+        ],
+        "raw_quote": "참가유형: 개인·팀·단체·기업",
+        "span": [
+          98,
+          114
         ]
       }
     ],
@@ -518,6 +554,24 @@
         ]
       },
       {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026년 4월 30일(목)",
+        "span": [
+          37,
+          52
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026년 4월 24일(금) 10:00",
+        "span": [
+          179,
+          200
+        ]
+      },
+      {
         "type": "status",
         "operator": "unknown",
         "raw_quote": "국내외 2년제 이상 대학에 재학 또는 휴학 중인 만 28세 이하의 학생",
@@ -529,10 +583,10 @@
       {
         "type": "military",
         "operator": "unknown",
-        "raw_quote": "군 복무자",
+        "raw_quote": "군 복무자, 졸업유예자 지원 가능",
         "span": [
           99,
-          104
+          117
         ]
       },
       {
@@ -575,6 +629,15 @@
         "span": [
           186,
           215
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026년 4월 8일(수)",
+        "span": [
+          33,
+          47
         ]
       },
       {
@@ -624,15 +687,39 @@
         ]
       },
       {
-        "type": "status",
-        "operator": "in",
-        "value": [
-          "대학생"
-        ],
-        "raw_quote": "대학생 (졸업생, 대학원생 지원불가)",
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026.03.20(금)",
         "span": [
-          70,
-          90
+          338,
+          351
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026.03.25(수)",
+        "span": [
+          376,
+          389
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026.03.27(금)",
+        "span": [
+          411,
+          424
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026.04.01(수)",
+        "span": [
+          448,
+          461
         ]
       },
       {
@@ -710,23 +797,48 @@
         ]
       },
       {
-        "type": "status",
-        "operator": "in",
-        "value": [
-          "대학생"
-        ],
-        "raw_quote": "대학생 누구나(전공 무관)",
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026. 4. 4.(토)",
         "span": [
-          16,
+          119,
+          133
+        ]
+      },
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026. 3. 21.(토)",
+        "span": [
+          363,
+          378
+        ]
+      },
+      {
+        "type": "status",
+        "operator": "equals",
+        "value": "대학생",
+        "raw_quote": "모집대상: 대학생 누구나(전공 무관)",
+        "span": [
+          10,
           30
         ]
       },
       {
         "type": "etc",
         "operator": "unknown",
-        "raw_quote": "2026. 4. 4.(토) 간담회 참석 가능자",
+        "raw_quote": "우대사항: SNS 운영자, 대외활동 및 서포터즈 경력자",
         "span": [
-          119,
+          80,
+          110
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "지원요건: 2026. 4. 4.(토) 간담회 참석 가능자",
+        "span": [
+          113,
           144
         ]
       }
@@ -737,6 +849,15 @@
     "opportunity_id": "opp-supporters-03",
     "content_category": "opportunity",
     "conditions": [
+      {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2026. 01. 31.(토)",
+        "span": [
+          46,
+          62
+        ]
+      },
       {
         "type": "status",
         "operator": "in",
@@ -768,11 +889,7 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "재학생",
-          "휴학생"
-        ],
+        "operator": "unknown",
         "raw_quote": "대학생 재·휴학생",
         "span": [
           70,
@@ -854,9 +971,8 @@
         ]
       },
       {
-        "type": "region",
-        "operator": "equals",
-        "value": "서울",
+        "type": "etc",
+        "operator": "unknown",
         "raw_quote": "매월 1회 이상 서울 인근 지정 오프라인 행사 참석 가능자",
         "span": [
           111,
@@ -895,10 +1011,28 @@
   },
   {
     "opportunity_id": "opp-bootcamp-01",
-    "content_category": "general_info",
-    "conditions": [],
-    "status": "ok",
-    "notes": "지원 자격이나 마감 조건이 없음 — 지원사업이 아닌 정보성 콘텐츠로 분류됨 (C의 적격 판정 불필요)"
+    "content_category": "opportunity",
+    "conditions": [
+      {
+        "type": "status",
+        "operator": "unknown",
+        "raw_quote": "학력과 전공은 중요하지 않습니다.",
+        "span": [
+          243,
+          261
+        ]
+      },
+      {
+        "type": "etc",
+        "operator": "unknown",
+        "raw_quote": "6월 24일부터 8월 30일까지 10주간 우아한테크캠프에 풀타임으로 참여할 수 있는 분이어야 합니다.",
+        "span": [
+          322,
+          378
+        ]
+      }
+    ],
+    "status": "ok"
   },
   {
     "opportunity_id": "opp-bootcamp-02",
@@ -915,8 +1049,7 @@
       },
       {
         "type": "status",
-        "operator": "equals",
-        "value": "미취업자",
+        "operator": "unknown",
         "raw_quote": "고용보험에 가입되어 있지 않은 미취업자 (재직자 참여 불가)",
         "span": [
           13,
@@ -924,7 +1057,7 @@
         ]
       },
       {
-        "type": "etc",
+        "type": "status",
         "operator": "unknown",
         "raw_quote": "9시부터 18시까지 진행되는 실시간 강의에 참여 가능하신 분 (대학생의 경우 휴학 후 참여 가능)",
         "span": [
@@ -958,6 +1091,15 @@
         ]
       },
       {
+        "type": "period",
+        "operator": "equals",
+        "raw_quote": "2023.03.23(목)",
+        "span": [
+          132,
+          145
+        ]
+      },
+      {
         "type": "status",
         "operator": "unknown",
         "raw_quote": "국민내일배움카드 발급이 가능한 분",
@@ -984,11 +1126,7 @@
     "conditions": [
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "4년제 대학 졸업자",
-          "4년제 대학 졸업예정자"
-        ],
+        "operator": "unknown",
         "raw_quote": "국내외 4년제 대학 졸업자 및 졸업 예정자 (전공 무관)",
         "span": [
           42,
@@ -997,11 +1135,7 @@
       },
       {
         "type": "status",
-        "operator": "in",
-        "value": [
-          "마이스터고 졸업자",
-          "마이스터고 졸업예정자"
-        ],
+        "operator": "unknown",
         "raw_quote": "국내 지정 마이스터고 졸업자 및 졸업예정자 (학과 무관)",
         "span": [
           74,
