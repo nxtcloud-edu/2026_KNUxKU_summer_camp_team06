@@ -31,4 +31,4 @@ COPY --from=frontend-build /app/services/keep-web/frontend/dist ./frontend/dist
 ENV NODE_ENV=production
 ENV AGENT_PYTHON=python3
 EXPOSE 8080
-CMD ["npm", "start"]
+CMD ["node", "server/index.js"]
