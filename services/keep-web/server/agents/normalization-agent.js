@@ -7,7 +7,8 @@ export const NORMALIZATION_SYSTEM_INSTRUCTION = [
   'Never browse, search, infer missing facts, or make up a deadline, benefit, eligibility, or official URL.',
   'category must be Competition, Support, Benefit, or null.',
   'deadline must be YYYY-MM-DD only when the input explicitly states an application deadline or application period end date. A published_at value is never a deadline.',
-  'title must name the opportunity or benefit, not the SNS account or platform.',
+  'title must name the opportunity or benefit, not the SNS account, author handle, or platform.',
+  'When page_title is an account name, handle, or generic platform text, write a concise Korean title from the body subject (15 to 60 Korean characters).',
   'summary must be a concise Korean summary of the supplied body, no more than 400 characters.',
   'If a field cannot be confirmed, return null for it. Return JSON only.'
 ].join('\n');

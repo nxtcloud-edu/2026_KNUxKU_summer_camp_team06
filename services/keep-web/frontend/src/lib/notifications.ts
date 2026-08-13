@@ -63,7 +63,7 @@ export function useNotifications(now = new Date()) {
       const record = resolveDecision(decisions, item.id, item.initialDecision);
       if (record.state === 'archived') continue;
 
-      const bucket = deadlineBucket(item.dDay);
+      const bucket = item.dDay === null ? null : deadlineBucket(item.dDay);
       if (bucket) {
         result.push({
           id: `deadline:${item.id}:${bucket.key}`,

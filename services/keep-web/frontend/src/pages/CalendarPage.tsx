@@ -117,7 +117,7 @@ export function CalendarPage() {
         result.push({
           id: `${DEADLINE_EVENT_PREFIX}${item.id}`,
           title: `${item.title} 마감`,
-          description: `${item.organization} · D-${item.dDay}`,
+          description: item.dDay === null ? item.organization : `${item.organization} · D-${item.dDay}`,
           startTime: deadline,
           endTime: end,
           color: 'red',

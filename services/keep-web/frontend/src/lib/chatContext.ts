@@ -21,7 +21,7 @@ export interface AnswerContext {
   planOverrides?: Parameters<typeof planFor>[1];
 }
 
-const dDayLabel = (item: Opportunity) => `D-${item.dDay} (마감 ${item.deadline})`;
+const dDayLabel = (item: Opportunity) => item.dDay === null ? '마감 정보가 없어요' : `D-${item.dDay} (마감 ${item.deadline})`;
 
 function conditionAnswer(item: Opportunity) {
   const lines = item.eligibility.map((condition) => `· ${condition}`).join('\n');
@@ -56,7 +56,7 @@ function scheduleAnswer(item: Opportunity, tasks: PlanTask[]) {
 }
 
 function weeklyAnswer(overrides: AnswerContext['planOverrides']) {
-  const soon = opportunities.filter((item) => item.dDay <= 7);
+  const soon = opportunities.filter((item) => item.dDay !== null && item.dDay <= 7);
   if (!soon.length) return '이번 주에 마감되는 기회는 없어요. 다음 주 마감은 실행 계획 화면에서 확인할 수 있어요.';
   const lines = soon
     .map((item) => {

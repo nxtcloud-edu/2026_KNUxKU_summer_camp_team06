@@ -79,13 +79,6 @@ export const PROFILE_FIELDS = [
     why: '대학생·재직자처럼 신분을 요구하는 조건에 사용해요.',
     missing: '상태가 없으면 신분 조건이 ‘확인 필요’로 남아요.',
   },
-  {
-    key: 'income_bracket' as const,
-    label: '소득 구간',
-    conditionLabel: '소득·재산 조건',
-    why: '소득 기준이 있는 지원 정책에서 대상 여부를 확인해요.',
-    missing: '소득 구간이 없으면 소득 조건은 판단하지 않고 남겨 둬요.',
-  },
 ] as const;
 
 export type ProfileFieldKey = (typeof PROFILE_FIELDS)[number]['key'];

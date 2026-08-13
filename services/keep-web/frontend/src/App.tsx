@@ -78,7 +78,7 @@ function HomePage() {
         <DashboardRail title="참여하기로 한 기회" subtitle="결정한 기회의 다음 단계를 이어가세요" items={joined} />
       )}
       <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
-      <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay <= 11)} />
+      <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay !== null && item.dDay <= 11)} />
     </div>
   );
 }
@@ -104,7 +104,7 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
       <span className="opportunity-rank" aria-hidden="true">{rank}</span>
       <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true"><span /><i /><b /><em /></div>
       <div className="opportunity-card-copy">
-        <div><span>{item.category}</span><strong>D-{item.dDay}</strong></div>
+        <div><span>{item.category}</span>{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
         <h4>{item.title}</h4>
         <p>{item.organization}</p>
         <small>다음: {nextTask}</small>
@@ -144,7 +144,7 @@ function SavedPage() {
       ? decision === 'archived'
       : decision !== 'archived' && (
         filter === '전체'
-        || (filter === '마감 임박' && item.dDay <= 7)
+        || (filter === '마감 임박' && item.dDay !== null && item.dDay <= 7)
         || (filter === '확인 필요' && item.verdict === 'needsCheck')
         || (filter === '참여 결정' && decision === 'joined')
         || (filter === '나중에' && decision === 'later')
@@ -250,7 +250,7 @@ function OpportunityRow({ item, decision }: { item: Opportunity; decision: Decis
         <p>{item.organization}</p>
       </div>
       <div className="row-reason"><span>KEEP:ON 한줄 요약</span><p>{item.reason}</p></div>
-      <div className="row-deadline"><strong>D-{item.dDay}</strong><span>{item.deadline}</span></div>
+      <div className="row-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.deadline}</span></div>
       <ArrowRight className="row-arrow" size={19} />
     </Link>
   );
@@ -273,7 +273,7 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
         <div className="detail-top"><span>{item.category}</span><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div>
         <p className="organization">{item.organization}</p>
         <h2>{item.title}</h2>
-        <div className="detail-deadline"><strong>D-{item.dDay}</strong><span>마감 {item.deadline}</span></div>
+        <div className="detail-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
       </section>
 
       <section className="reason-panel">
@@ -442,7 +442,7 @@ function PlanPage() {
   const plans = useMemo(
     () => allPlans(overrides)
       .filter(({ item }) => decisionOf(decisions, item) === 'joined')
-      .sort((a, b) => a.item.dDay - b.item.dDay),
+      .sort((a, b) => (a.item.dDay ?? Number.MAX_SAFE_INTEGER) - (b.item.dDay ?? Number.MAX_SAFE_INTEGER)),
     [decisions, overrides],
   );
 
@@ -462,7 +462,7 @@ function PlanPage() {
             <Link to={`/plan/${item.id}`} key={item.id} className={`plan-row accent-${item.accent}`}>
               <span className="plan-number">{String(index + 1).padStart(2, '0')}</span>
               <div className="plan-copy">
-                <span>{item.category} · D-{item.dDay}</span>
+                <span>{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
                 <h3>{item.title}</h3>
                 <p>{next ? `다음: ${next.title} · ${formatPlanDate(next.dueAt)}` : '모든 단계 완료'}</p>
               </div>
@@ -503,10 +503,12 @@ function PlanDetail({ item }: { item: Opportunity }) {
       <Link to="/plan" className="back-link"><ArrowLeft size={17} />실행 계획</Link>
       <div className="plan-detail-head">
         <div>
-          <span className="section-label">{item.category} · D-{item.dDay}</span>
+          <span className="section-label">{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
           <h2>{item.title}</h2>
           <p>
-            마감 {deadlineLabel ? deadlineLabel.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }) : item.deadline}에서 거꾸로 계산한 일정이에요.{' '}
+            {deadlineLabel
+              ? `마감 ${deadlineLabel.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}에서 거꾸로 계산한 일정이에요.`
+              : '마감일 정보 없이 오늘부터 시작하는 일정이에요.'}{' '}
             <Link to="/calendar" className="inline-link">캘린더에서 보기</Link>
           </p>
         </div>
@@ -609,7 +611,7 @@ function ChatPage() {
             <div>
               <span>이 기회에 대해 이야기 중</span>
               <Link to={`/saved/${item.id}`}>{item.title}</Link>
-              <small>{item.organization} · D-{item.dDay}</small>
+              <small>{item.organization}{item.dDay !== null && ` · D-${item.dDay}`}</small>
             </div>
             <button type="button" onClick={clearContext} aria-label="맥락 지우기"><X size={16} /></button>
           </div>
@@ -622,7 +624,7 @@ function ChatPage() {
               <p>
                 {item
                   ? `‘${item.title}’에 대해 저장한 정보와 일정을 기준으로 답해 드려요.`
-                  : '수정님, 어떤 기회를 함께 살펴볼까요?'}
+                  : '어떤 정보를 함께 살펴볼까요?'}
               </p>
             </div>
           )}
@@ -655,6 +657,7 @@ function ChatPage() {
 function ProfilePage() {
   const [reminders, setReminders] = useState(true);
   const stored = useStoredProfile();
+  const { session } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(
     () => missingRequired(stored).length > 0 && !isOnboardingDone(),
   );
@@ -664,8 +667,12 @@ function ProfilePage() {
   return (
     <div className="page profile-page">
       <section className="profile-hero">
-        <span className="large-avatar">수</span>
-        <div><p className="section-label">MY PROFILE</p><h2>김수정</h2><p>대학생 · 컴퓨터공학 · 3학년</p></div>
+        <span className="large-avatar">{(session?.user.user_metadata.full_name || session?.user.email || '내').slice(0, 1)}</span>
+        <div>
+          <p className="section-label">MY PROFILE</p>
+          <h2>{session?.user.user_metadata.full_name || '내 프로필'}</h2>
+          <p>{stored.status || '아직 입력한 프로필 정보가 없어요'}</p>
+        </div>
       </section>
 
       {showOnboarding ? (

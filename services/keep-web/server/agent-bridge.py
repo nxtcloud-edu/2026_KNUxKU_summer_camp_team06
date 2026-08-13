@@ -36,8 +36,22 @@ def service(request: dict) -> RecommendationService:
     opportunities = request.get("opportunities")
     normalizations = request.get("normalizations")
     if isinstance(opportunities, list) and isinstance(normalizations, list):
+        # 마이그레이션 이전에 저장된 항목은 normalized_opportunities 행이 없을 수 있다.
+        # 그런 항목도 C의 선택/판정 대상에는 넣되, 조건이 없다는 사실을 명시한다.
+        normalized_ids = {str(row.get("opportunity_id")) for row in normalizations}
+        missing_normalizations = [
+            {
+                "opportunity_id": str(row["id"]),
+                "content_category": "general_info",
+                "conditions": [],
+                "status": "partial",
+                "notes": "정규화 결과가 없는 기존 저장 항목",
+            }
+            for row in opportunities
+            if row.get("id") and str(row["id"]) not in normalized_ids
+        ]
         return RecommendationService.from_b_records(
-            [opportunity_record(row) for row in opportunities], normalizations
+            [opportunity_record(row) for row in opportunities], normalizations + missing_normalizations
         )
     return RecommendationService.from_b_files(
         ROOT / "data" / "opportunities.json",

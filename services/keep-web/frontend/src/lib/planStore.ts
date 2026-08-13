@@ -132,7 +132,8 @@ export function scheduleBackwards(deadline: Date, count: number, today = new Dat
 /** 저장된 수정 내용을 반영하기 전의 기본 계획 */
 export function basePlan(item: Opportunity, today = new Date()): PlanTask[] {
   const execution = readExecutionTasks(item.id);
-  const deadline = parseDeadline(item.deadline) ?? addDays(startOfDay(today), item.dDay);
+  // 마감이 없는 일반 정보도 사용자가 계획을 만들 수 있게, 기본 시작일만 오늘로 둔다.
+  const deadline = parseDeadline(item.deadline) ?? addDays(startOfDay(today), item.dDay ?? 0);
   const source = execution ?? item.tasks;
   const schedule = scheduleBackwards(deadline, source.length, today);
 

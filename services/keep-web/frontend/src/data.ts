@@ -7,7 +7,7 @@ export interface Opportunity {
   title: string;
   organization: string;
   category: string;
-  dDay: number;
+  dDay: number | null;
   deadline: string;
   savedFrom: string;
   sourceUrl: string;
@@ -41,13 +41,21 @@ export const calendarEvents: { day: number; title: string; tone: string; categor
 
 const accents: Accent[] = ['blue', 'pink', 'yellow', 'green'];
 
+function daysUntil(deadline?: string | null): number | null {
+  if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
+  const target = new Date(`${deadline}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
 export function setOpportunities(items: StoredOpportunity[]) {
   opportunities = items.map((item, index) => ({
     id: item.id,
     title: item.title || '제목을 정리하는 중이에요',
     organization: item.author || '정보 없음',
     category: item.category || '기타',
-    dDay: 999,
+    dDay: daysUntil(item.deadline),
     deadline: item.deadline || '정보 없음',
     savedFrom: item.platform || '직접 저장',
     sourceUrl: item.canonical_url || item.source_url || '#',
