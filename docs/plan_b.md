@@ -6,37 +6,40 @@
 
 ## 현재 상태 (이미 완료됨)
 
-- [x] `src/extraction_agent.py`: 링크(requests+bs4 실제 동작) / 텍스트(실제 동작) / 이미지(mock, 인터페이스만) → `SavedContext`
-- [x] `src/normalization_agent.py`: 나이·기간은 정규식(R5 준수, 실제 동작) / 나머지 6종은 키워드 기반 mock LLM → `NormalizationResult`, `raw_quote`가 원문에 실재하는지 코드로 검증(`_verify_grounding`)해서 R2를 강제함
-- [x] `data/opportunities.json`: 스키마 + SAMPLE 2건 (실제 데이터 아님, 표시됨)
+- [x] `src/extraction_agent.py`: 링크(requests+bs4 실제 동작) / 텍스트(실제 동작) / **파일(PDF, pypdf 실제 동작)** / 이미지(mock, 인터페이스만) → `SavedContext`
+- [x] `src/normalization_agent.py`: 나이·기간은 정규식(R5 준수, 실제 동작, 실제 20건으로 패턴 보강 완료) / 나머지 6종은 키워드 기반 mock LLM → `NormalizationResult`, `raw_quote`가 원문에 실재하는지 코드로 검증(`_verify_grounding`)해서 R2를 강제함
+- [x] `data/opportunities.json`: 실제 공고 20건 (지원사업6·공모전5·서포터즈5·부트캠프4), 위비티/링커리어/온통청년/각 지자체 공식 페이지에서 직접 수집
+- [x] `scripts/run_pipeline.py`: 20건 전체 검증 — extraction 20/20 ok, normalization 19/20 ok (1건은 원문 자체에 조건 없음이 명시된 정상 케이스)
+- [x] `docs/personas.md`: 실제 데이터 기반 테스트 페르소나 5종
+- [x] GitHub 공유 완료 (2026-08-13, `main` 브랜치)
 
 ## Day 1 — 로컬 파이프라인 완성 (AWS 없음)
 
-### 1. 실제 공고 20건 수집 (최우선, 병목 지점)
-- 목표: 인스타그램/블로그/학교공지/온통청년(youthcenter.go.kr) 등에서 **실제** 청년 대상 공모전·지원사업·서포터즈·부트캠프 공고 20건
-- 기준: `raw_text`에 **원문 그대로**(재작성 금지) 자격요건이 포함되어야 함 — normalization의 근거 인용이 여기서 나옴
-- 카테고리 균형: 공모전/서포터즈/부트캠프/지원사업 각 4~6건 정도로 분산 (페르소나 김서연의 작년 이력과 맞추면 데모 설득력↑)
-- 진행하면서 `_fields`에 정의된 필드 그대로 `data/opportunities.json`의 `opportunities` 배열에 추가, SAMPLE 2건은 데모 직전에 제거
-- **8종 조건이 실제로 다양하게 나타나는 공고를 의도적으로 섞을 것** (특히 `income`, `duplicate`, `military`, `etc`처럼 mock 키워드 리스트에 없는 표현이 있는 공고 3~4건은 일부러 포함 — normalization의 "모르면 unknown" 동작을 데모에서 보여주기 좋음)
+### 1. 실제 공고 20건 수집 — ✅ 완료
+- 위비티·링커리어·온통청년·강원일자리정보망·서울주거포털·bizinfo.go.kr 등에서 직접 수집
+- 8종 조건 전 타입 실제 등장 확인됨 (age14·region4·status16·income3·duplicate3·military5·period16·etc4)
 
-### 2. normalization_agent.py 정확도 보강
-- 수집한 20건을 `normalize()`에 실제로 돌려보고, 정규식(`_AGE_PATTERN`, `_PERIOD_PATTERN`)이 놓치는 표기 패턴 발견 시 패턴 추가 (예: "1991년생 이후", "만 19세~34세" 등 변형)
-- `_KEYWORD_HINTS`에 실제 공고에서 자주 보이는 표현 추가 (예: "중위소득", "차상위" 등)
-- **주의**: 정규식/키워드를 아무리 늘려도 `_verify_grounding()` 검증은 절대 우회하지 말 것 — 이게 R2의 핵심 안전장치
+### 2. normalization_agent.py 정확도 보강 — ✅ 완료
+- 실제 데이터로 나이(0→14건)/기간(1→16건) 정규식 패턴 대폭 보강, 키워드 힌트도 확장
+- **알려진 한계**: `opp-grant-04`처럼 생년월일 구간으로 나이를 표현하는 경우는 여전히 못 잡음 → AWS 연동 후 LLM 교체로 해결 예정
+- `_verify_grounding()` 검증은 그대로 유지 (R2 핵심 안전장치)
 
-### 3. extraction_agent.py 견고화
-- 실제 링크 20개로 `extract_from_link()` 테스트 → JS 렌더링 페이지, 로그인 필요 페이지(R6: 우회 금지, failed 처리 확인), PDF 링크 등 예외 케이스 확인
-- 스크린샷 케이스는 아직 mock 그대로 두되, 팀 회의에서 D/E와 "이미지 업로드 → mock 텍스트 반환" 흐름이 UI 데모에 문제없는지 확인
+### 3. extraction_agent.py 견고화 — 진행 중
+- [x] 실제 링크 20개 크롤링 테스트 통과
+- [x] **FILE(PDF) 입력 경로 추가** — 실제 수집 중 서울시 청년월세지원 공고가 PDF 첨부파일로만 제공되는 걸 발견해서 추가. HWP는 의도적으로 미지원(파싱 신뢰도 낮음) → 실패 처리 + 스크린샷 유도 (R6와 동일 원칙)
+  - 알려진 한계: PDF에 ToUnicode CMap이 없는 경우 pypdf가 깨진 텍스트를 반환할 수 있음(감지 못함) — 실제 정부 PDF로는 정상 동작 확인
+- [ ] **크롬 익스텐션 입력 경로** — Raindrop.io 참고해 A가 만들 예정. 익스텐션은 사용자의 인증된 브라우저 세션에서 이미 렌더링된 콘텐츠를 캡처하므로, 서버가 재요청할 필요 없는 새 입력 경로(`SourceType.EXTENSION` 후보)가 필요함. A의 실제 구현을 보기 전까지 스키마 확정 보류
+- [ ] 스크린샷 케이스는 아직 mock — D/E와 "이미지 업로드 → mock 텍스트 반환" 흐름이 UI 데모에 문제없는지 확인 필요
 
-### 4. 최소 통합 테스트
-- `data/opportunities.json`의 20건을 `extract → normalize` 파이프라인에 순서대로 태워 `NormalizationResult` 20개를 생성하는 스크립트 작성 (`tests/` 또는 `scripts/run_pipeline.py`)
-- 결과를 JSON으로 저장해 C(엄세연)에게 전달 — **이게 B→C 인터페이스의 첫 실물 계약**
+### 4. 최소 통합 테스트 — ✅ 완료
+- `scripts/run_pipeline.py`로 20건 전체 검증, 결과 `data/normalization_results.json`으로 저장
 
-## Day 1 저녁 / Day 2 오전 — C, D와 통합
+## Day 1 저녁 / Day 2 오전 — C, D와 통합 (다음 작업)
 
-- [ ] C에게 `NormalizationResult` 샘플 20개 전달, C의 `eligibility_agent.py`가 기대하는 입력과 실제 출력이 맞는지 맞춰보기
-- [ ] A와 `src/models.py`에 스키마 이관 논의 (지금 draft로 각 파일 상단에 있는 `SavedContext`, `NormalizationResult` 등을 공식 스키마로 확정)
+- [ ] C에게 `NormalizationResult` 샘플 20개 전달, C의 `eligibility_agent.py`가 기대하는 입력과 실제 출력이 맞는지 맞춰보기 — **깃허브 공유는 됐지만 팀원 간 코드 리뷰/동기화는 아직 안 된 상태이므로 별도로 알려야 함**
+- [ ] A와 `src/models.py`에 스키마 이관 논의 (지금 draft로 각 파일 상단에 있는 `SavedContext`, `NormalizationResult` 등을 공식 스키마로 확정) — FILE/EXTENSION source type도 함께 논의
 - [ ] status가 `partial`/`failed`인 케이스를 C/D/E가 UI에서 어떻게 다뤄야 하는지 합의 (예: `failed`면 사용자에게 재입력 요청)
+- [ ] `docs/personas.md`에서 발견한 온보딩 소득구간 설계 이슈(퍼센트 세분화 필요) A/C와 논의
 
 ## Day 2 — AWS 발급 후
 

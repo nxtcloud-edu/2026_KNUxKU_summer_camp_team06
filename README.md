@@ -44,7 +44,7 @@ scripts/
 
 ## B(데이터·링크 분석) 파트 — 현재 상태
 
-- `extraction_agent.py`: 링크(requests+bs4, 실제 크롤링 동작) / 텍스트(동작) / 이미지(mock — 실제 비전 LLM 연동 전)
+- `extraction_agent.py`: 링크(requests+bs4, 실제 크롤링 동작) / 텍스트(동작) / 파일(PDF, pypdf 실제 동작 — HWP는 의도적으로 미지원, 스크린샷 유도) / 이미지(mock — 실제 비전 LLM 연동 전)
 - `normalization_agent.py`: 나이·기간은 정규식(순수 함수, R5) / 나머지 6종 조건은 키워드 기반 mock. 모든 조건은 원문에 실재하는 인용(`raw_quote`)인지 코드로 검증(`_verify_grounding`)하여 R2("근거 없이 생성 금지")를 강제함
 - 실제 공고 20건(지원사업6·공모전5·서포터즈5·부트캠프4)으로 검증 완료: **19/20 정규화 성공**, 8종 조건 전 타입 실제 등장 확인
 

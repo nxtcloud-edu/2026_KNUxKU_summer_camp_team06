@@ -3,6 +3,7 @@ pydantic>=2.0
 requests
 beautifulsoup4
 python-dateutil
+pypdf
 
 # 테스트
 pytest
