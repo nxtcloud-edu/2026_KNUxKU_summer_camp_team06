@@ -45,6 +45,7 @@ def main() -> None:
 
         client.table("normalized_opportunities").insert({
             "saved_item_id": saved_item_id,
+            "opportunity_id": norm.get("opportunity_id"),
             "content_category": norm.get("content_category"),
             "conditions": norm.get("conditions", []),
             "status": norm["status"],

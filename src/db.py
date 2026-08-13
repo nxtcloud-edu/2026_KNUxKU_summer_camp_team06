@@ -52,6 +52,7 @@ def save_normalization_result(result: NormalizationResult, saved_item_id: str) -
     """NormalizationResult를 normalized_opportunities 테이블에 저장하고 새 row의 id를 반환한다."""
     payload = {
         "saved_item_id": saved_item_id,
+        "opportunity_id": result.opportunity_id,
         "content_category": result.content_category.value if result.content_category else None,
         "conditions": [c.model_dump(mode="json") for c in result.conditions],
         "status": result.status,
