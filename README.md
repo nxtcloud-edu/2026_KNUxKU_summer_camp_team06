@@ -18,6 +18,7 @@
 | [`docs/personas.md`](./docs/personas.md) | 테스트 페르소나 5종 |
 | [`docs/db_schema.md`](./docs/db_schema.md) | Supabase 스키마 전체 계획 |
 | [`services/keep-web/README.md`](./services/keep-web/README.md) | Chrome Extension·Node 서버 로컬 실행 안내 |
+| [`web/landing/README.md`](./web/landing/README.md) | 랜딩페이지(마케팅 소개 페이지) 로컬 실행 안내 |
 
 ## 전체 아키텍처 (한눈에)
 
@@ -68,6 +69,8 @@ src/
 
 app/
   streamlit_app.py          # E — Frontend (미착수)
+
+web/landing/                # 랜딩페이지 (Vite+React+TS+Tailwind+shadcn, B가 스캐폴딩)
 
 data/            # B — 실제 공고 20건 + 정규화 결과 (테스트 픽스처)
 scripts/         # B — 파이프라인 검증 스크립트
