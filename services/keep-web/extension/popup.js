@@ -452,7 +452,7 @@ async function keepCurrentPage() {
 
 keepButton.addEventListener('click', keepCurrentPage);
 dashboardButton.addEventListener('click', async () => {
-  await chrome.tabs.create({ url: API_BASE });
+  await chrome.tabs.create({ url: `${API_BASE}/saved` });
 });
 connectButton.addEventListener('click', connectAccount);
 disconnectButton.addEventListener('click', async () => {

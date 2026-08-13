@@ -533,6 +533,23 @@ img { max-width: 100%; display: block; }
 .dashboard-section-head a:hover { background: var(--white); color: var(--ink); box-shadow: var(--shadow-xs); }
 .dashboard-section-head a svg { transition: transform var(--dur-2) var(--ease-out); }
 .dashboard-section-head a:hover svg { transform: translateX(3px); }
+.home-data-state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 48px 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--white);
+  color: var(--ink-2);
+}
+.home-data-state > span { width: 22px; height: 22px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: agent-spin 850ms linear infinite; }
+.home-data-state svg { flex: 0 0 auto; color: var(--accent-color); }
+.home-data-state div { flex: 1; }
+.home-data-state strong { display: block; color: var(--ink); font-size: var(--text-md); }
+.home-data-state p { margin: 5px 0 0; font-size: var(--text-sm); }
+.home-data-state a { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-color); font-size: var(--text-sm); font-weight: 750; }
 
 .opportunity-rail {
   display: flex;

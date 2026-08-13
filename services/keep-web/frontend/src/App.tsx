@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
+  Bookmark,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -55,7 +56,7 @@ import { isOnboardingDone, markOnboardingDone, missingRequired, patchProfile, us
 import { matchesAnyField } from './lib/koreanSearch';
 import { useRecentQueries } from './lib/recentQueries';
 
-function HomePage() {
+function HomePage({ loading }: { loading: boolean }) {
   const decisions = useDecisions();
   // 보관한 기회는 추천에서 빠져야 목록이 정리되는 느낌이 생긴다.
   const active = useMemo(
@@ -74,16 +75,29 @@ function HomePage() {
         <p>저장한 정보를 제목, 내용, 기간과 링크로 정리해 두었어요.</p>
       </header>
 
+      {loading ? (
+        <section className="home-data-state" aria-live="polite">
+          <span /><div><strong>저장한 정보를 불러오고 있어요</strong><p>잠시만 기다려 주세요.</p></div>
+        </section>
+      ) : active.length === 0 ? (
+        <section className="home-data-state">
+          <Bookmark size={22} />
+          <div><strong>아직 저장한 정보가 없어요</strong><p>Instagram 또는 Threads에서 Keep하면 이곳에 정리됩니다.</p></div>
+          <Link to="/saved">저장으로 가기 <ArrowRight size={16} /></Link>
+        </section>
+      ) : <>
       {joined.length > 0 && (
         <DashboardRail title="참여하기로 한 기회" subtitle="결정한 기회의 다음 단계를 이어가세요" items={joined} />
       )}
       <DashboardRail title="오늘 확인할 기회" subtitle="가장 가까운 마감과 다음 행동을 모았어요" items={active} />
       <DashboardRail title="마감이 가까워요" subtitle="이번 주 안에 결정하면 충분한 기회예요" items={active.filter((item) => item.dDay !== null && item.dDay <= 11)} />
+      </>}
     </div>
   );
 }
 
 function DashboardRail({ title, subtitle, items }: { title: string; subtitle: string; items: Opportunity[] }) {
+  if (!items.length) return null;
   return (
     <section className="dashboard-section">
       <div className="dashboard-section-head">
@@ -859,17 +873,19 @@ function LandingPage({ onSignIn }: { onSignIn: () => Promise<void> }) {
 
 function App() {
   const { ready, session, signIn } = useAuth();
-  const [, setDataVersion] = useState(0);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (!session) {
       setOpportunities([]);
-      setDataVersion((value) => value + 1);
+      setLoadingData(false);
       return;
     }
+    setLoadingData(true);
     void getMyOpportunities()
-      .then((items) => { setOpportunities(items); setDataVersion((value) => value + 1); })
-      .catch(() => { setOpportunities([]); setDataVersion((value) => value + 1); });
+      .then((items) => { setOpportunities(items); })
+      .catch(() => { setOpportunities([]); })
+      .finally(() => setLoadingData(false));
   }, [session]);
 
   if (!ready) return <main className="page home-page"><p>KEEP:ON을 준비하고 있어요.</p></main>;
@@ -879,7 +895,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage loading={loadingData} />} />
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/saved/:id" element={<OpportunityDetailPage />} />
           <Route path="/plan" element={<PlanPage />} />
