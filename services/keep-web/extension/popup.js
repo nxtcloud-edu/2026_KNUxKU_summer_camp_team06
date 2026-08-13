@@ -203,6 +203,13 @@ function collectPageEvidence() {
       || text('[rel="author"]')
       || ''
     : '';
+  const threadsAuthor = platform === 'threads'
+    ? meta('meta[name="author"]')
+      || ogTitle.match(/@([\w.]+)/)?.[1]
+      || ogTitle.match(/^Threads의\s*([^(@\n]{2,80})/)?.[1]?.trim()
+      || ogTitle.match(/^(.{2,80}?)\s*(?:\(@[\w.]+\))?\s*(?:on|의)\s*Threads/i)?.[1]?.trim()
+      || ''
+    : '';
   const instagramContainers = platform === 'instagram'
     ? Array.from(document.querySelectorAll('article, [role="article"]'))
     : [];
@@ -320,6 +327,7 @@ function collectPageEvidence() {
     .slice(0, 40);
   const publishedAt = document.querySelector('time[datetime]')?.dateTime || null;
   const author = instagramAuthor
+    || threadsAuthor
     || ogTitle.match(/@([\w.]+)/)?.[1]
     || text('[rel="author"]')
     || '';

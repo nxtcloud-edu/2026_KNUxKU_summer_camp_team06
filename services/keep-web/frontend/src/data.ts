@@ -57,7 +57,7 @@ export function setOpportunities(items: StoredOpportunity[]) {
   opportunities = items.map((item, index) => ({
     id: item.id,
     title: item.title || '제목을 정리하는 중이에요',
-    organization: item.author || '정보 없음',
+    organization: /^(unknown|정보 없음|null|n\/a)$/i.test(item.author || '') ? '' : item.author || '',
     category: item.category || '기타',
     dDay: daysUntil(item.deadline),
     deadline: item.deadline || '정보 없음',

@@ -8,6 +8,7 @@ export const NORMALIZATION_SYSTEM_INSTRUCTION = [
   'category must be Competition, Support, Benefit, or null.',
   'deadline must be YYYY-MM-DD only when the input explicitly states an application deadline or application period end date. A published_at value is never a deadline.',
   'title must name the opportunity or benefit, not the SNS account, author handle, or platform.',
+  'author must be an account name or handle only when it is explicitly present in the supplied author candidate, title, or body. Otherwise return null; never use "unknown" or a guessed account.',
   'When page_title is an account name, handle, or generic platform text, write a concise Korean title from the body subject (15 to 60 Korean characters).',
   'summary must be a concise Korean summary of the supplied body, no more than 400 characters.',
   'If a field cannot be confirmed, return null for it. Return JSON only.'
@@ -20,8 +21,9 @@ const GEMINI_RESPONSE_SCHEMA = {
     summary: { type: ['string', 'null'] },
     category: { type: ['string', 'null'], enum: ['Competition', 'Support', 'Benefit', null] },
     deadline: { type: ['string', 'null'], description: 'YYYY-MM-DD or null' }
+    ,author: { type: ['string', 'null'] }
   },
-  required: ['title', 'summary', 'category', 'deadline']
+  required: ['title', 'summary', 'category', 'deadline', 'author']
 };
 
 const CATEGORY_RULES = [
@@ -43,6 +45,11 @@ function compact(value, limit = 0) {
   if (typeof value !== 'string') return '';
   const result = value.replace(/\s+/g, ' ').trim();
   return limit ? result.slice(0, limit) : result;
+}
+
+function knownAuthor(value) {
+  const author = compact(value, 120);
+  return /^(unknown|정보 없음|null|n\/a)$/i.test(author) ? '' : author;
 }
 
 function summaryFromBody(body) {
@@ -70,7 +77,7 @@ function ruleBasedNormalize(extracted) {
     title: extracted.title,
     summary: summaryFromBody(extracted.body),
     body: extracted.body,
-    author: extracted.author,
+    author: knownAuthor(extracted.author),
     published_at: extracted.published_at,
     category: CATEGORIES.includes(category) ? category : null,
     deadline: parseDeadline(extracted.deadline_text),
@@ -98,6 +105,7 @@ function normalizeGeminiResult(result, fallback) {
     summary,
     category,
     deadline,
+    author: knownAuthor(result && result.author) || fallback.author,
     confidence: category ? 0.85 : fallback.confidence,
     normalization_method: 'gemini',
     content_category: contentCategory(deadline),
@@ -111,6 +119,7 @@ function promptFor(extracted) {
     source_url: extracted.source_url,
     platform: extracted.platform,
     page_title: extracted.title,
+    author_candidate: knownAuthor(extracted.author) || null,
     body_text: extracted.body,
     deadline_text: extracted.deadline_text || null,
     links: (extracted.links || []).map(({ url, label }) => ({ url, label })).slice(0, 10)

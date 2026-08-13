@@ -35,7 +35,7 @@ class PlatformExtractionAgent {
       canonical_url: pageEvidence.canonical_url || pageEvidence.source_url,
       title,
       body,
-      author: compact(pageEvidence.author, 'unknown'),
+      author: compact(pageEvidence.author),
       published_at: pageEvidence.published_at || null,
       deadline_text: compact(pageEvidence.deadline_text, body.match(/(?:마감|접수기간|신청기간|deadline)[^\n]*/i)?.[0] || ''),
       thumbnail_url: compact(pageEvidence.thumbnail_url),

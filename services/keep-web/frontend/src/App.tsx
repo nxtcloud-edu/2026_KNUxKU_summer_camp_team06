@@ -124,9 +124,9 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
       <div className="opportunity-card-copy">
         <div><CategoryTag category={item.category} />{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
         <h4>{item.title}</h4>
-        <p>{item.organization}</p>
+        {item.organization && <p>{item.organization}</p>}
         <small>다음: {nextTask}</small>
-        <PlatformLogo platform={item.savedFrom} />
+        <PlatformLogo platform={item.savedFrom} thumbnailKind={item.thumbnailKind} />
       </div>
     </Link>
   );
@@ -144,10 +144,12 @@ function CategoryTag({ category }: { category: string }) {
   return <span className={`category-tag category-tag-${categoryTone(category)}`}>{category}</span>;
 }
 
-function PlatformLogo({ platform }: { platform: string }) {
+function PlatformLogo({ platform, thumbnailKind }: { platform: string; thumbnailKind: Opportunity['thumbnailKind'] }) {
   const name = platform.trim().toLowerCase();
-  const logo = name === 'instagram' || name === 'threads' || name === 'x' || name === 'youtube' ? name : null;
-  return logo ? <img className="platform-logo" src={`/logos/${logo}.png`} alt={`${logo}에서 저장`} /> : null;
+  const platformLogo = name === 'instagram' || name === 'threads' || name === 'x' || name === 'youtube' ? name : null;
+  const logo = platformLogo || (thumbnailKind === 'pdf' ? 'pdf' : thumbnailKind === 'image' ? 'jpg' : null);
+  const label = platformLogo ? `${platformLogo}에서 저장` : thumbnailKind === 'pdf' ? 'PDF 파일' : '이미지 파일';
+  return logo ? <img className="platform-logo" src={`/logos/${logo}.png`} alt={label} /> : null;
 }
 
 function SavedPage() {
@@ -322,7 +324,7 @@ function OpportunityRow({ item, decision }: { item: Opportunity; decision: Decis
           <span>{item.savedFrom} · {item.savedAt} 저장</span>
         </div>
         <h3>{item.title}</h3>
-        <p>{item.organization}</p>
+        {item.organization && <p>{item.organization}</p>}
       </div>
       <div className="row-reason"><span>KEEP:ON 한줄 요약</span><p>{item.reason}</p></div>
       <div className="row-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.deadline}</span></div>
@@ -344,7 +346,7 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
       <Link to="/saved" className="back-link"><ArrowLeft size={17} />저장 목록</Link>
       <section className={`detail-hero accent-${item.accent}`}>
         <div className="detail-top"><CategoryTag category={item.category} /><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div>
-        <p className="organization">{item.organization}</p>
+        {item.organization && <p className="organization">{item.organization}</p>}
         <h2>{item.title}</h2>
         <div className="detail-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
       </section>
