@@ -547,7 +547,6 @@ img { max-width: 100%; display: block; }
 .ai-recommend-progress { margin: 32px 0; }
 .ai-recommend-panel { margin: 32px 0 70px; padding: 22px; border: 1px solid #d8e8ef; border-radius: var(--r-xl); background: #f5fbfd; }
 .ai-recommend-panel h3 { margin: 5px 0 16px; color: var(--ink); font-size: var(--text-lg); }
-.ai-recommend-method { margin: -8px 0 18px; color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-snug); }
 .ai-recommend-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .ai-recommend-card { display: grid; align-content: start; gap: 9px; min-height: 220px; padding: 17px; border: 1px solid #dcebf0; border-radius: var(--r-lg); background: var(--white); color: var(--ink); transition: translate var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
 .ai-recommend-card:hover { translate: 0 -3px; box-shadow: var(--shadow-sm); }

@@ -130,7 +130,7 @@ function HomePage({ loading }: { loading: boolean }) {
       )}
       {(recommendations || recommendationState === 'error') && (
         <section className="ai-recommend-panel">
-          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 공고를 Gemini가 평가했어요</h3><p className="ai-recommend-method">관심사, 프로필 적합도, 마감 임박도, 공고 정보의 구체성을 근거로 100점 만점으로 정렬했어요.</p></div>
+          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 공고를 Gemini가 평가했어요</h3></div>
           <div className="ai-recommend-cards">
           {recommendations?.recommendations.map((ranking) => {
             const item = opportunities.find((candidate) => candidate.id === ranking.opportunity_id);
@@ -142,7 +142,7 @@ function HomePage({ loading }: { loading: boolean }) {
           })}
           </div>
           {recommendations?.follow_up_questions.map((question) => <p key={question} className="ai-recommend-note">{question}</p>)}
-          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
+          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천 결과를 준비하지 못했어요. 다시 눌러 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
         </section>
       )}
     </div>
@@ -271,8 +271,8 @@ function SavedPage() {
     <div className="page">
       <section className="page-intro">
         <p className="section-label">MY SAVES</p>
-        <h2>저장한 정보가<br />기회가 되는 곳</h2>
-        <p>Instagram과 Threads에서 Keep한 정보만 모았어요. 하나씩 열어보고 결정하면 됩니다.</p>
+        <h2>저장한 정보가 기회가 되는 곳</h2>
+        <p>정보를 기회로 KEEP:ON</p>
       </section>
       <label className="upload-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files); }}>
         <input type="file" multiple accept="image/*,.pdf,.txt" onChange={(event) => event.target.files && void addFiles(event.target.files)} />

@@ -72,17 +72,24 @@ export class GeminiRecommendationAgent {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
-      const response = await this.fetchImpl(endpoint, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: 'user', parts: [{ text: JSON.stringify(context) }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1800, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-        }),
-      });
-      if (!response.ok) throw new Error(`Gemini 추천 요청 실패 (${response.status})`);
-      const payload = await response.json();
-      const raw = (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
+      const request = async (strictSchema) => {
+        const response = await this.fetchImpl(endpoint, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents: [{ role: 'user', parts: [{ text: JSON.stringify(context) }] }],
+            generationConfig: {
+              temperature: 0.1, maxOutputTokens: 1800, responseMimeType: 'application/json',
+              ...(strictSchema ? { responseSchema: RESPONSE_SCHEMA } : {}),
+            },
+          }),
+        });
+        if (!response.ok) throw new Error(`Gemini 추천 요청 실패 (${response.status})`);
+        const payload = await response.json();
+        return (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
+      };
+      let raw = '';
+      try { raw = await request(true); } catch { raw = await request(false); }
       if (!raw) throw new Error('Gemini 추천 응답이 비어 있습니다.');
       const parsed = JSON.parse(raw);
       const allowedIds = new Set(opportunities.map((item) => item.id));
