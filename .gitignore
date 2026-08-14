@@ -6,6 +6,9 @@ venv/
 .env.*
 !.env.example
 .DS_Store
+.gstack/
+.turbo/
+*.tsbuildinfo
 *.egg-info/
 .pytest_cache/
 
