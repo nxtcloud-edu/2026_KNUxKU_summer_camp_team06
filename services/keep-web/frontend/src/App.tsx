@@ -142,7 +142,7 @@ function HomePage({ loading }: { loading: boolean }) {
       )}
       {(recommendations || recommendationState === 'error') && (
         <section className="ai-recommend-panel">
-          <div><span className="section-label">AI RECOMMENDATION</span><h3>좋아요한 공고를 Gemini가 평가했어요</h3></div>
+          <div><span className="section-label">AI RECOMMENDATION</span><h3>{recommendations?.provider === 'fallback' ? '좋아요한 공고를 추천 기준으로 정리했어요' : '좋아요한 공고를 Gemini가 평가했어요'}</h3></div>
           <div className="ai-recommend-cards">
           {recommendations?.recommendations.map((ranking) => {
             const item = opportunities.find((candidate) => candidate.id === ranking.opportunity_id);

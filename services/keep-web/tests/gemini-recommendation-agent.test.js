@@ -86,3 +86,20 @@ test('Gemini 사고 텍스트와 최종 JSON이 함께 와도 최종 결과만 �
   const result = await agent.recommend({ profile: { interests: ['AI'] }, opportunities: [{ id: 'saved-1', title: 'AI 공고' }] });
   assert.equal(result.recommendations[0].score, 84);
 });
+
+test('Gemini가 JSON 계약을 지키지 못해도 좋아요 공고 추천 카드를 반환한다', async () => {
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '추천 결과를 확인해 보세요.' }] } }] }) }),
+  });
+  const result = await agent.recommend({
+    profile: { interests: ['AI'] },
+    opportunities: [
+      { id: 'saved-1', title: 'AI 해커톤', summary: 'AI 프로젝트 참가자 모집' },
+      { id: 'saved-2', title: '문화 혜택', summary: '무료 전시' },
+    ],
+  });
+  assert.equal(result.provider, 'fallback');
+  assert.equal(result.recommendations.length, 2);
+  assert.equal(result.recommendations[0].opportunity_id, 'saved-1');
+});

@@ -83,6 +83,40 @@ function finalResponseText(payload) {
     .map((part) => part.text).join('').trim();
 }
 
+function fallbackRecommendations(profile, opportunities) {
+  const interests = (Array.isArray(profile?.interests) ? profile.interests : [])
+    .map((interest) => compact(String(interest), 60).toLowerCase()).filter(Boolean);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return opportunities.slice(0, 12).map((item) => {
+    const evidence = `${item.title || ''} ${item.category || ''} ${item.summary || item.body || ''}`.toLowerCase();
+    const matched = interests.filter((interest) => evidence.includes(interest));
+    const factors = [];
+    let score = 48;
+    if (matched.length) {
+      score += Math.min(30, matched.length * 15);
+      factors.push(`관심사 ${matched.slice(0, 2).join(', ')} 관련`);
+    }
+    if (item.deadline && /^\d{4}-\d{2}-\d{2}$/.test(item.deadline)) {
+      const days = Math.ceil((new Date(`${item.deadline}T00:00:00`).getTime() - today.getTime()) / 86400000);
+      if (days >= 0 && days <= 14) { score += 15; factors.push('마감 일정 확인'); }
+      else if (days >= 0) { score += 7; factors.push('일정 여유 있음'); }
+    }
+    if (compact(item.summary || item.body, 80)) { score += 8; factors.push('핵심 정보 확인'); }
+    const rationale = matched.length
+      ? `관심사와 공고 내용이 맞아 맞춤 공고로 추천합니다.`
+      : `좋아요로 저장한 공고 중 핵심 정보가 확인되어 먼저 살펴볼 만합니다.`;
+    return {
+      opportunity_id: item.id,
+      score: Math.min(100, score),
+      label: matched.length ? '추천' : '검토 필요',
+      rationale,
+      factors: factors.length ? factors : ['좋아요한 공고'],
+    };
+  }).sort((a, b) => b.score - a.score).slice(0, 3)
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
 export class GeminiRecommendationAgent {
   constructor({
     apiKey = process.env.GEMINI_API_KEY,
@@ -140,7 +174,6 @@ export class GeminiRecommendationAgent {
         } finally { clearTimeout(timer); }
       };
       let parsed;
-      let lastError;
       for (const attempt of [
         { strictSchema: true },
         { strictSchema: true, retryForJson: true, concise: true },
@@ -150,15 +183,17 @@ export class GeminiRecommendationAgent {
           if (!raw) throw new Error('Gemini 추천 응답이 비어 있습니다.');
           parsed = parseGeminiJson(raw);
           break;
-        } catch (error) {
-          lastError = error;
-        }
+        } catch {}
       }
       if (!parsed) {
-        if (lastError?.name === 'AbortError' || /aborted/i.test(lastError?.message || '')) {
-          throw new Error('Gemini 추천 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.');
-        }
-        throw lastError || new Error('Gemini 추천 결과를 만들지 못했습니다.');
+        // Gemini가 추천 내용은 반환했지만 JSON 계약을 지키지 못한 경우에도
+        // 사용자는 좋아요한 공고 카드를 바로 확인할 수 있어야 한다.
+        return {
+          provider: 'fallback',
+          liked_opportunity_ids: opportunities.map((item) => item.id),
+          recommendations: fallbackRecommendations(profile, opportunities),
+          follow_up_questions: [],
+        };
       }
       const allowedIds = new Set(opportunities.map((item) => item.id));
       const seen = new Set();
@@ -175,6 +210,7 @@ export class GeminiRecommendationAgent {
       if (!recommendations.length) throw new Error('Gemini가 유효한 추천 결과를 만들지 못했습니다.');
       recommendations.sort((a, b) => b.score - a.score);
     return {
+      provider: 'gemini',
       liked_opportunity_ids: opportunities.map((item) => item.id),
       recommendations: recommendations.map((item, index) => ({ ...item, rank: index + 1 })),
       follow_up_questions: (Array.isArray(parsed.follow_up_questions) ? parsed.follow_up_questions : []).map((question) => compact(question, 120)).filter(Boolean).slice(0, 2),
