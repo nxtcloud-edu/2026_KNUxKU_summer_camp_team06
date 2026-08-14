@@ -473,12 +473,26 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
 function DecisionCard({ item }: { item: Opportunity }) {
   const navigate = useNavigate();
   const decisions = useDecisions();
+  const [deleting, setDeleting] = useState(false);
   const record = resolveDecision(decisions, item.id, item.initialDecision);
   const decision = record.state;
   const snoozeLabel = record.snoozeUntil
     ? new Date(record.snoozeUntil).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
     : snoozeDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
   const canOpenOriginal = /^https?:\/\//i.test(item.sourceUrl) && item.thumbnailKind !== 'pdf' && item.thumbnailKind !== 'image';
+  const remove = async () => {
+    if (!window.confirm(`'${item.title}' 정보를 삭제할까요?`)) return;
+    setDeleting(true);
+    try {
+      await deleteOpportunity(item.id);
+      setOpportunities(opportunities.filter((candidate) => candidate.id !== item.id));
+      navigate('/saved');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const copy: Record<DecisionState, { title: string; body: string }> = {
     none: {
@@ -547,6 +561,10 @@ function DecisionCard({ item }: { item: Opportunity }) {
           <Archive size={15} />{decision === 'archived' ? '보관 해제' : '안 할래'}
         </button>
       </div>
+
+      <button type="button" className="secondary-action detail-delete-action" onClick={() => void remove()} disabled={deleting}>
+        <Trash2 size={15} />{deleting ? '삭제하는 중…' : '삭제'}
+      </button>
 
       {canOpenOriginal && (
         <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="secondary-action">

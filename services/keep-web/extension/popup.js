@@ -509,7 +509,8 @@ async function keepCurrentPage() {
         : '';
       throw new Error(`${result.error?.message || `Intake 실패 (${response.status})`}${details}`);
     }
-    setStatus(`저장했어요\n${result.intake_id}\n이 창을 닫아도 정리는 계속돼요.`);
+    if (result.status === 'FAILED') throw new Error(result.error?.message || '정보 정리에 실패했습니다.');
+    setStatus(`정리함에 저장했어요\n${result.intake_id}`);
   } catch (error) {
     setStatus(`Keep 실패\n${error.message}`);
   } finally {

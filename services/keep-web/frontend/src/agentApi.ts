@@ -103,7 +103,7 @@ export async function deleteOpportunity(opportunityId: string) {
   const response = await authorizedFetch(`/v1/opportunities/${encodeURIComponent(opportunityId)}`, {
     method: 'DELETE',
   });
-  const body = await response.json();
+  const body = response.status === 204 ? null : await response.json();
   if (!response.ok) throw new Error(body.error?.message || body.error || '저장 정보를 삭제하지 못했습니다.');
   return body;
 }

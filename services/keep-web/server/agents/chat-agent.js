@@ -57,7 +57,7 @@ export class GeminiConversationAgent {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ text: JSON.stringify(context) }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1800 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
         }),
       });
       if (!response.ok) throw new Error(`Gemini 대화 요청 실패 (${response.status})`);

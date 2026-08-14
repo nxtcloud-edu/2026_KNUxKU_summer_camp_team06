@@ -218,10 +218,15 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
           return;
         }
         const intake = await keeperStore.createIntake(checked.value, session.userId, session.accessToken);
-        setImmediate(() => processIntake(keeperStore, intake.id, session));
+        // Cloud Run은 응답 후 백그라운드 CPU 실행을 보장하지 않는다. Keep 완료를
+        // 표시하기 전에 같은 요청 안에서 정리·저장을 끝내야 목록 누락이 없다.
+        await processIntake(keeperStore, intake.id, session);
+        const completed = await keeperStore.getIntake(intake.id, session.userId, session.accessToken);
         sendJson(response, 202, {
           intake_id: intake.id,
-          status: intake.status,
+          status: completed?.status || intake.status,
+          opportunity_id: completed?.opportunity_id || null,
+          error: completed?.error || null,
           status_url: `/v1/intakes/${intake.id}`,
           dashboard_url: `/?intake_id=${encodeURIComponent(intake.id)}`
         });
@@ -255,8 +260,15 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
             byte_size: metadata.byte_size || 1,
           }, session.userId, session.accessToken);
         }
-        setImmediate(() => processIntake(keeperStore, intake.id, session));
-        sendJson(response, 202, { intake_id: intake.id, status: intake.status, status_url: `/v1/intakes/${intake.id}` });
+        await processIntake(keeperStore, intake.id, session);
+        const completed = await keeperStore.getIntake(intake.id, session.userId, session.accessToken);
+        sendJson(response, 202, {
+          intake_id: intake.id,
+          status: completed?.status || intake.status,
+          opportunity_id: completed?.opportunity_id || null,
+          error: completed?.error || null,
+          status_url: `/v1/intakes/${intake.id}`,
+        });
         return;
       }
 

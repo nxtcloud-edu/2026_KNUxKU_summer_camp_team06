@@ -1008,6 +1008,8 @@ img { max-width: 100%; display: block; }
 .row-delete-button { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: var(--white); color: var(--ink-3); }
 .row-delete-button:hover { border-color: #ef7080; background: #fff1f3; color: #d83f55; }
 .row-delete-button:disabled { cursor: wait; opacity: .55; }
+.detail-delete-action { width: 100%; margin-top: 10px; color: #c6384e; }
+.detail-delete-action:hover { border-color: #ef7080; background: #fff1f3; color: #b32b42; }
 
 .row-decision {
   padding: 5px 10px;
