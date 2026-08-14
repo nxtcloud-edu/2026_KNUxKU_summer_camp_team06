@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KEEP:ON",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "현재 탭의 정보성 페이지 증거를 local Opportunity Keeper로 보냅니다.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqpWWr9aX891eQhnAB2mCTHfbotvlPwqj+6lYxfDZY/XDtIIZElDfRqS+/uuTm9VlUKkO8oM5itmifbctW2IoYDlfQTPsm4s/AMDFSAtfhizHcu2VnTFaTskPD+8QjsxYyPJn3M1tZagpjdnrgJD++ZEcGl0gt+yinrL2ZxEdRyNr/1zTIc2pBVCVUV6D56KzFkpp6DJGlDgaZ1QpPOB+W7VX3ThIJvMTqPD7MzHSU1Hifr5PtCormr72FKBh6biFx3wnW9sQtXVIp36ot+85wUH6N5J33ncHC7ZYtdwno0GsM/GPF3GEUVxifVYJKFkOD7aV+rHiQ691enMN0CeFAQIDAQAB",
   "permissions": ["activeTab", "scripting", "tabs", "storage", "identity"],

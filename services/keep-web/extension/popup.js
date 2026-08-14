@@ -239,10 +239,18 @@ function collectPageEvidence() {
       .find((url) => /^https:\/\//i.test(url) && !/profile|avatar/i.test(url)) || '';
   }
   // Threads의 OG 이미지는 실제 게시물 사진이 아닌 Threads 로고인 경우가 많다.
-  // 현재 게시물 영역의 큰 이미지만 쓰고, 없으면 대표 이미지 없이 저장한다.
+  // 현재 게시물 ID의 /media 링크 안 이미지만 쓰고, 없으면 대표 이미지 없이 저장한다.
   if (platform === 'threads') {
-    const threadImageScope = document.querySelector('article, [role="article"]') || document.querySelector('main') || document;
-    const threadMedia = Array.from(threadImageScope.querySelectorAll('img'))
+    const sourcePostPath = new URL(sourceUrl).pathname.replace(/\/$/, '');
+    const threadMediaLink = Array.from(document.querySelectorAll('a[href]')).find((anchor) => {
+      try {
+        const path = new URL(anchor.href).pathname.replace(/\/$/, '');
+        return path === `${sourcePostPath}/media` || path.startsWith(`${sourcePostPath}/media/`);
+      } catch {
+        return false;
+      }
+    });
+    const threadMedia = Array.from(threadMediaLink?.querySelectorAll('img') || [])
       .map((image) => ({
         url: image.currentSrc || image.getAttribute('src') || image.getAttribute('data-src') || '',
         alt: image.getAttribute('alt') || '',
