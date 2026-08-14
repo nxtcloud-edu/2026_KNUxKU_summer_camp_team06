@@ -14,10 +14,17 @@ npm start
 Chrome에서 `chrome://extensions`를 열고 개발자 모드를 켠 뒤 이 폴더의
 `extension/`을 압축해제된 확장 프로그램으로 로드합니다.
 
-현재 다른 로컬 서비스와 포트 충돌을 피하기 위해 KEEP:ON을 `4174`에서 실행 중입니다.
-Extension은 같은 로컬 주소로 고정되어 있으며, 팝업의 `Google 계정 연결`을 누르기 전에
-표시되는 `Supabase Redirect URL`을 Supabase
-Authentication의 Redirect URLs에 등록해야 합니다.
+### 팀 공용 확장프로그램 로그인 설정
+
+팀원은 **이 폴더 전체**를 같은 커밋에서 내려받아 로드해야 합니다. `manifest.json`에
+공용 공개키가 포함되어 있어 모든 팀원의 확장프로그램 ID와 OAuth 콜백 주소가 같습니다.
+
+Supabase Dashboard → Authentication → URL Configuration의 Redirect URLs에 아래 주소를
+한 번만 추가하세요.
+
+`https://hgbjonmpfpcldflkheaijgkolmoining.chromiumapp.org/auth/callback`
+
+기존 확장프로그램은 제거하거나 새로고침한 뒤 다시 **Google 계정 연결**을 누르세요.
 
 서버가 실행되면 다음 fixture에서 로그인 없이 Keep을 재현할 수 있습니다.
 

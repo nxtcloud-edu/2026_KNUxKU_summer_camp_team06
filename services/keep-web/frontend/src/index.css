@@ -217,28 +217,10 @@ img { max-width: 100%; display: block; }
 .top-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: var(--accent-color);
-  font-size: var(--text-lg);
-  font-weight: 800;
-  letter-spacing: -.035em;
   transition: transform var(--dur-2) var(--ease-out);
 }
+.top-brand img { width: 132px; height: auto; }
 .top-brand:hover { transform: translateY(-1px); }
-.top-brand-mark {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: var(--text-md);
-  font-weight: 800;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-3) var(--ease-spring);
-}
-.top-brand:hover .top-brand-mark { transform: rotate(-8deg) scale(1.06); }
 
 .top-nav-links {
   position: absolute;
@@ -1613,8 +1595,7 @@ img { max-width: 100%; display: block; }
 @media (max-width: 680px) {
   :root { --topbar-h: 62px; }
   .topbar { padding: 0 16px; }
-  .top-brand { font-size: var(--text-md); }
-  .top-brand-mark { width: 30px; height: 30px; font-size: var(--text-sm); }
+  .top-brand img { width: 112px; }
   .top-nav-links { display: none; }
   .top-page-title { display: block; margin-left: 14px; color: var(--ink); font-size: var(--text-md); font-weight: 700; }
   .topbar-actions { gap: 2px; }

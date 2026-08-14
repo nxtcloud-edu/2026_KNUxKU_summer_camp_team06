@@ -48,7 +48,7 @@ export function AppShell() {
     <div className="app-shell">
       <div className="workspace">
         <header className="topbar">
-          <NavLink to="/" className="top-brand" aria-label="KEEP:ON 홈"><span className="top-brand-mark">K</span><span>KEEP:ON</span></NavLink>
+          <NavLink to="/" className="top-brand" aria-label="KEEP:ON 홈"><img src="/brand/logo-lockup-horizontal.svg" alt="KEEP:ON" /></NavLink>
           <nav className="top-nav-links" aria-label="주요 메뉴">
             {navigation.map(({ to, label }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'is-active' : ''}>{label}</NavLink>)}
           </nav>
