@@ -43,12 +43,44 @@ function parseGeminiJson(value) {
   const raw = compact(value, 20_000);
   const unwrapped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   try { return JSON.parse(unwrapped); } catch {
-    const start = unwrapped.indexOf('{');
-    const end = unwrapped.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new Error('Gemini 추천 응답의 JSON 형식이 올바르지 않습니다.');
-    try { return JSON.parse(unwrapped.slice(start, end + 1)); }
-    catch { throw new Error('Gemini 추천 응답의 JSON 형식이 올바르지 않습니다.'); }
+    // Gemini 2.5는 내부 사고 텍스트와 최종 JSON을 같은 응답에 넣을 수 있다.
+    // 중괄호가 사고 문장에 있어도 최종 JSON 객체를 찾아 읽는다.
+    const candidates = [];
+    let start = -1;
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let index = 0; index < unwrapped.length; index += 1) {
+      const char = unwrapped[index];
+      if (quoted) {
+        escaped = char === '\\' && !escaped;
+        if (char === '"' && !escaped) quoted = false;
+        if (char !== '\\') escaped = false;
+        continue;
+      }
+      if (char === '"') { quoted = true; continue; }
+      if (char === '{') { if (depth === 0) start = index; depth += 1; continue; }
+      if (char === '}' && depth > 0) {
+        depth -= 1;
+        if (depth === 0 && start >= 0) {
+          try {
+            const candidate = JSON.parse(unwrapped.slice(start, index + 1));
+            if (Array.isArray(candidate.recommendations)) candidates.push(candidate);
+          } catch {}
+          start = -1;
+        }
+      }
+    }
+    if (candidates.length) return candidates.at(-1);
+    throw new Error('Gemini 추천 응답의 JSON 형식이 올바르지 않습니다.');
   }
+}
+
+function finalResponseText(payload) {
+  const parts = payload.candidates?.[0]?.content?.parts || [];
+  // 사고 과정(thought)은 사용자의 추천 결과도 아니고 JSON 파싱 대상도 아니다.
+  return parts.filter((part) => !part.thought && typeof part.text === 'string')
+    .map((part) => part.text).join('').trim();
 }
 
 export class GeminiRecommendationAgent {
@@ -104,7 +136,7 @@ export class GeminiRecommendationAgent {
           });
           if (!response.ok) throw new Error(`Gemini 추천 요청 실패 (${response.status})`);
           const payload = await response.json();
-          return (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
+          return finalResponseText(payload);
         } finally { clearTimeout(timer); }
       };
       let parsed;

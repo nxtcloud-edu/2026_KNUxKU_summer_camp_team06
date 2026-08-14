@@ -74,3 +74,15 @@ test('Gemini 요청이 중단돼도 새 요청으로 한 번 더 추천한다', 
   assert.equal(calls, 2);
   assert.equal(result.recommendations[0].score, 75);
 });
+
+test('Gemini 사고 텍스트와 최종 JSON이 함께 와도 최종 결과만 사용한다', async () => {
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [
+      { thought: true, text: '추천 기준을 검토합니다. {임시 메모}' },
+      { text: '{"recommendations":[{"opportunity_id":"saved-1","score":84,"label":"지금 확인","rationale":"관심사와 공고 주제가 맞습니다.","factors":[]}],"follow_up_questions":[]}' },
+    ] } }] }) }),
+  });
+  const result = await agent.recommend({ profile: { interests: ['AI'] }, opportunities: [{ id: 'saved-1', title: 'AI 공고' }] });
+  assert.equal(result.recommendations[0].score, 84);
+});
