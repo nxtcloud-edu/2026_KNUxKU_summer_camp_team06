@@ -1,62 +1,135 @@
 # KEEP:ON
 
-저장은 했는데 다시 확인하지 않아 기회를 놓치는 청년·대학생을 위한 정보 실행 서비스입니다.
-사용자가 Instagram·Threads 등의 정보성 게시물을 직접 **Keep**하거나 링크를 입력하면,
-본문을 근거와 함께 정리해 대시보드에 표시하고 이후 마감 관리와 실행 계획으로 연결합니다.
+KEEP:ON은 SNS와 파일에서 저장한 공고·정보를 사용자별로 정리하고, 필요한 경우 추천·대화·실행 계획으로 연결하는 서비스입니다.
 
-## 현재 기준 아키텍처
+대학생과 청년은 공모전, 정책, 교육, 혜택 정보를 Instagram과 Threads에서 자주 발견합니다. 그러나 저장한 게시물은 다시 찾기 어렵고, 마감일·대상·신청 방법을 별도로 정리해야 합니다. KEEP:ON은 사용자가 직접 Keep한 자료만 처리해 제목, 내용, 마감일, 링크, 분류를 저장합니다.
 
-최종 제품의 전환 대상 아키텍처는 다음과 같습니다.
+자동 크롤링이나 대량 수집은 하지 않습니다. Instagram·Threads는 사용자가 현재 열어 둔 게시물을 확장프로그램에서 Keep한 경우에만 수집합니다.
 
-- Node.js 20 HTTP Web 서버
-- Manifest V3 Chrome Extension
-- 사용자 Keep 또는 직접 링크 입력만 처리하는 Intake API
-- 플랫폼별 Extraction Agent (현재 Instagram·Threads)
-- Competition / Support / Benefit Normalization Agent
-- HTTP API를 소비하는 웹 대시보드
-- Supabase 인증·사용자별 저장(RLS)과 Gemini 정규화
-- 사용자 확인 후 Python 실행·추천 Agent와 Calendar/Notification 확장
+## 입력 방식
 
-자동 수집·대량 크롤링은 하지 않습니다. 사용자가 저장을 요청한 현재 페이지의 증거만 처리합니다.
-릴스와 동영상은 영상을 분석하지 않고 게시물의 캡션·본문과 링크를 수집합니다.
+| 입력 | 처리 범위 |
+| --- | --- |
+| Chrome Extension Keep | 로그인된 Instagram 또는 Threads 게시물의 본문·제목·링크·썸네일 증거 수집 |
+| 이미지 | 업로드 파일의 텍스트 추출 후 공고 정보 정리 |
+| PDF | 업로드 파일의 텍스트 추출 후 공고 정보 정리 |
+| 텍스트 | 사용자가 입력한 텍스트를 공고 정보로 정리 |
 
-## 데이터 흐름
+동영상 자체를 분석하지 않습니다. Instagram 릴스와 일반 게시물은 게시물 캡션·본문을 수집합니다.
+
+## 전체 구조
 
 ```mermaid
 flowchart LR
-  U[사용자] --> E[Chrome Extension<br/>Keep 버튼]
-  U --> L[웹 링크 입력]
-  E --> I[POST /v1/intakes]
-  L --> I
-  I --> P[Platform Extraction Agent]
-  P --> N[Normalization Agent]
-  N --> V[결정적 검증]
-  V --> S[(Opportunity Store)]
-  S --> W[HTTP Web Dashboard]
-  W --> C{사용자 확인}
-  C --> D[Planning / Calendar<br/>추후 단계]
+  U[사용자] --> E[Chrome Extension]
+  U --> W[웹 업로드]
+  E --> I[Intake API]
+  W --> I
+  I --> X[수집·추출]
+  X --> N[정규화·분류]
+  N --> S[내용 정리]
+  S --> V[검증]
+  V --> DB[(Supabase)]
+  DB --> D[웹 대시보드]
+  D --> R[추천·AI 대화]
+  D --> P[실행 계획·캘린더]
 ```
 
-Extension이 보내는 `PageEvidencePayload`는 URL, canonical URL, 페이지 제목, 본문, 본문에서
-확인한 링크, 게시일, 증거 텍스트를 포함합니다. 로그인 안내 페이지, 게시물 URL 불일치,
-본문 부재 등은 성공으로 위장하지 않고 접근 실패 또는 `NEEDS_REVIEW`로 보존합니다.
-마감일은 선택값이며 본문에 확정 근거가 없으면 `null`입니다.
+### Keep 처리 순서
 
-## 폴더 구조
+SNS 게시물을 Keep하면 아래 순서로 처리합니다.
+
+1. 확장프로그램이 현재 페이지의 URL, 본문, 제목, 작성자, 링크, OG 메타데이터, 썸네일을 수집합니다.
+2. 플랫폼 수집 에이전트가 Instagram 또는 Threads 증거를 게시물 데이터로 변환합니다.
+3. 정규화 에이전트가 제목, 본문, 마감일, 조건, 링크를 구조화합니다.
+4. 분류와 내용 정리 단계가 `Competition`, `Support`, `Benefit` 분류 및 사용자용 제목·요약을 만듭니다.
+5. 검증 단계가 근거와 필수 형식을 확인합니다.
+6. `intakes`, `opportunities`, `normalized_opportunities`에 사용자별로 저장합니다.
+
+마감일은 선택 정보입니다. 원문에 근거가 없으면 마감일을 만들지 않고 비어 있는 값으로 저장합니다.
+
+## 에이전트 구성
+
+현재 구현에서 일부 역할은 독립 프로세스가 아니라 하나의 정규화 파이프라인 안의 단계로 동작합니다.
+
+| 구분 | 구현 | 역할 | 실행 시점 |
+| --- | --- | --- | --- |
+| 플랫폼 수집 | `InstagramExtractionAgent` | Instagram 게시물 증거에서 본문·링크·작성자 추출 | Instagram Keep |
+| 플랫폼 수집 | `ThreadsExtractionAgent` | Threads 게시물 증거에서 본문·링크·작성자 추출 | Threads Keep |
+| 파일 수집 | `GeminiSourceExtractionAgent` | 이미지·PDF·텍스트에서 원문 텍스트 추출 | 파일 업로드 |
+| 정규화 | `PythonBridgeNormalizationAgent` | 제목, 본문, 링크, 마감일, 조건 구조화 | 모든 Intake |
+| 분류 | Python 정규화 규칙 | `Competition`·`Support`·`Benefit` 및 정보 유형 분류 | 정규화 단계 |
+| 내용 정리 | `GeminiNormalizationAgent` | 사용자가 읽기 쉬운 제목과 요약 정리 | 정규화 이후 |
+| 검증 | `ValidationService` | 근거·형식 검증, `READY_FOR_REVIEW` 또는 `NEEDS_REVIEW` 결정 | 저장 전 |
+| 추천 | `GeminiRecommendationAgent` | 사용자가 좋아요한 공고만 프로필·관심사·일정 기준으로 정렬 | AI 추천 요청 |
+| 대화 | `GeminiConversationAgent` | 저장 공고와 최근 대화 맥락을 근거로 답변 | AI 대화 |
+| 자격 판정 | Eligibility Agent | 연령·지역·재학 상태 등 원문 조건과 프로필 비교 | 공고 평가 요청 |
+| 준비 여유 판정 | Feasibility Agent | 마감일·준비량·사용 가능 시간을 기준으로 판단 | 공고 평가 요청 |
+| 실행 계획 | Execution / Planning Agent | 사용자가 선택한 공고의 실행 순서와 할 일 초안 생성 | 계획 초안 만들기 |
+| 캘린더 | CalendarTool | 사용자가 승인한 계획을 일정으로 반영·수정 | 캘린더 반영 |
+
+추천, 자격 판정, 실행 계획은 Keep 직후 자동으로 실행되지 않습니다. 저장 이후 사용자가 좋아요, AI 추천, 계획 만들기 등의 기능을 선택할 때 실행됩니다.
+
+## 저장 데이터
+
+| 테이블 | 용도 |
+| --- | --- |
+| `profiles` | 사용자 프로필과 개인화 기준 |
+| `intakes` | 입력 수신부터 추출·정규화·검증까지의 처리 상태 |
+| `opportunities` | 대시보드에 표시하는 사용자별 공고·정보 |
+| `normalized_opportunities` | 조건·분류 등 정규화 결과 |
+| `intake_files` | 업로드한 파일과 Intake 연결 정보 |
+
+Supabase Row Level Security(RLS)로 사용자는 자신의 데이터만 읽고 수정할 수 있습니다.
+
+## 디렉터리 구조
 
 ```text
 services/keep-web/
-  extension/                 # Manifest V3 Keep 버튼과 현재 탭 증거 수집
-  server/                    # HTTP API, workflow, 저장소, Agent 실행
-    agents/                  # 플랫폼 추출·정규화·추후 planning Agent
-  shared/contracts.js        # Node 서비스의 입력·출력 계약
-  web/                       # HTTP API를 사용하는 기본 대시보드
-  fixtures/                  # 로그인 없이 재현 가능한 Instagram/Threads 페이지
-  tests/                     # 계약·Extension·HTTP 통합 테스트
-  docs/technical-design.md   # 상세 기술 설계
+  extension/                   Manifest V3 Chrome Extension
+  frontend/                    React + Vite 웹 대시보드
+  server/
+    agents/                    수집·정규화·추천·대화 에이전트
+    workflow.js                Intake 파이프라인
+    index.js                   HTTP API
+  shared/contracts.js          입력·출력 계약
+  tests/                       계약·에이전트·통합 테스트
+  docs/                        서비스 세부 설계
+
+src/
+  normalization_agent.py       조건·날짜 정규화
+  eligibility_agent.py         자격 판정
+  feasibility_agent.py         준비 여유 판정
+  ranking_agent.py             우선순위·추천 데이터
+  execution/                   실행 계획·할 일·캘린더 도구
 ```
 
+## 기술 구성
+
+- Web: React, TypeScript, Vite
+- Extension: Chrome Manifest V3
+- API: Node.js HTTP Server
+- Agent runtime: Python + Gemini API
+- Auth / Database / Storage: Supabase
+- Deployment: Google Cloud Run
+- Notification demo: Slack Incoming Webhook
+
 ## 로컬 실행
+
+### 1. 환경변수 설정
+
+`services/keep-web/.env`에 서버 전용 값을 설정합니다.
+
+```env
+GEMINI_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SLACK_WEBHOOK_URL=... # 선택: 데모 알림용
+```
+
+`GEMINI_API_KEY`, Supabase 서비스 키, Slack Webhook URL은 프런트엔드·Chrome Extension·GitHub에 넣지 않습니다.
+
+### 2. 서버 실행과 테스트
 
 ```bash
 cd services/keep-web
@@ -64,78 +137,47 @@ npm test
 npm start
 ```
 
-Chrome에서 `chrome://extensions`를 열고 개발자 모드를 켠 뒤
-`services/keep-web/extension/` 폴더를 **압축해제된 확장 프로그램**으로 로드합니다.
-서버가 실행되면 다음 fixture 페이지에서 로그인 없이 Keep 흐름을 재현할 수 있습니다.
+### 3. 웹 대시보드 실행
 
-- http://localhost:4173/fixtures/instagram.html
-- http://localhost:4173/fixtures/threads.html
+```bash
+cd services/keep-web/frontend
+npm install
+npm run dev
+```
 
-실제 Instagram·Threads 게시물은 로그인된 Chrome 프로필에서 테스트합니다.
-코드 수정 후에는 Extension 새로고침과 SNS 페이지 새로고침을 함께 수행합니다.
+### 4. Chrome Extension 로드
 
-## 프론트엔드 연결 규칙
+1. Chrome에서 `chrome://extensions`를 엽니다.
+2. 개발자 모드를 켭니다.
+3. **압축해제된 확장 프로그램을 로드합니다.**
+4. `services/keep-web/extension/` 폴더를 선택합니다.
+5. 코드 변경 후 확장프로그램 새로고침과 SNS 페이지 새로고침을 함께 수행합니다.
 
-프론트엔드는 Agent 파일이나 저장소 모듈을 직접 import하지 않고 HTTP API만 사용합니다.
+## 주요 API
 
 | 목적 | 메서드 | 경로 |
-|---|---|---|
-| 저장 목록 | GET | `/v1/opportunities` |
-| 저장 상세 | GET | `/v1/opportunities/:id` |
-| Intake 상태 | GET | `/v1/intakes/:id` |
-| 사용자 확인 | POST | `/v1/opportunities/:id/confirm` |
-| 저장 삭제 | DELETE | `/v1/opportunities/:id` |
+| --- | --- | --- |
+| SNS Keep Intake 생성 | POST | `/v1/intakes` |
+| 파일·텍스트 Intake 생성 | POST | `/v1/intakes/source` |
+| Intake 상태 조회 | GET | `/v1/intakes/:id` |
+| 내 저장 목록 | GET | `/v1/opportunities` |
+| 공고 상세 | GET | `/v1/opportunities/:id` |
+| 공고 삭제 | DELETE | `/v1/opportunities/:id` |
+| AI 추천 | POST | `/v1/agent/recommendations` |
+| AI 대화 | POST | `/v1/agent/chat` |
+| 실행 계획 생성 | POST | `/v1/agent/execution` |
 
-목록 응답은 `{ "items": [...] }` 형태이며 카드에서 사용하는 핵심 필드는
-`title`, `body`/`summary`, `deadline`(null 가능), `canonical_url`, `source_url`,
-`links`, `platform`, `category`, `status`, `needs_review`입니다.
+## 협업 기준
 
-별도 React·Next·Vite 프론트는 로컬에서 `http://localhost:4173`을 API 기본 주소로 사용하고,
-운영 환경에서는 인증 토큰과 배포 URL을 환경변수로 주입합니다. `local-test-user`를 운영 사용자
-식별자로 사용하지 않습니다.
+- 새 수집 플랫폼은 `services/keep-web/server/agents/`에 추가합니다.
+- Agent는 화면이나 DB를 직접 수정하지 않고 입력·출력 계약에 맞는 결과를 반환합니다.
+- 저장과 상태 변경은 `workflow.js` 또는 API를 통해 처리합니다.
+- 새 Agent 또는 계약 변경에는 테스트를 추가합니다.
+- 공용 계약, DB 스키마, 인증 정책 변경은 PR에서 팀과 함께 검토합니다.
 
-## Agent 협업 규칙
+## 관련 문서
 
-- 현재 Node 서비스의 Agent 코드는 `services/keep-web/server/agents/`에 둡니다.
-- 플랫폼별 추출과 정규화를 분리합니다. 예: `instagram-extraction/`, `threads-extraction/`,
-  `normalization/`, `planning/`.
-- 모든 Agent는 `services/keep-web/shared/contracts.js`의 계약을 사용합니다.
-- Agent가 직접 웹 화면이나 저장소를 수정하지 않고 workflow를 통해 결과를 반환합니다.
-- 새 Agent와 fixture에는 테스트를 함께 추가하고 `npm test`를 통과시킵니다.
-- 공용 계약과 workflow 변경은 팀 합의 후 별도 브랜치 PR로 제출합니다.
-
-## Python Agent와 KEEP:ON의 관계
-
-레포의 Python Agent는 단순 stub이 아니라 별도 기능을 구현하고 있습니다. KEEP:ON Node 서비스는
-사용자가 Keep한 SNS 게시물을 개인 저장소에 넣는 진입점이고, Python Agent는 이 저장 데이터를
-바탕으로 적격성·추천·실행 계획을 담당합니다.
-
-- `src/extraction_agent.py`, `src/normalization_agent.py`: 링크·텍스트·이미지·PDF 처리와 조건 정규화
-- `src/eligibility_agent.py`, `src/feasibility_agent.py`, `src/ranking_agent.py`: 개인화 적격성·추천
-- `src/execution/`: 실행 계획, Todo, 캘린더, 알림 흐름
-- `app/execution_demo_app.py`: Streamlit 실행 Agent 데모
-
-공통 데이터 계약은 Node의 `Opportunity`와 Python의 `SavedContext`·`NormalizationResult` 사이에서
-명시적으로 매핑합니다. 한 런타임이 다른 런타임의 파일을 직접 수정하지 않습니다.
-
-## 현재 단계와 다음 단계
-
-현재 `services/keep-web`은 Gemini 정규화, Supabase Google 로그인, 사용자별 RLS 저장을 포함한
-로컬 수직 슬라이스입니다. API 키와 service-role 키는 서버 `.env`에만 둡니다.
-
-다음 단계에서 사용자 인증·DB·실제 Agent 실행 런타임을 붙입니다.
-
-1. 공용 계약을 `src/models.py`와 `shared/contracts.js` 사이에서 확정
-2. 링크·텍스트·사진·PDF 직접 입력 API와 Web 화면 연결
-3. Python Agent가 사용할 공용 Opportunity 계약 확정
-4. 사용자 확인 이후 Python 실행 Agent와 Calendar·Notification 연결
-
-## 문서
-
-- [`Project.md`](./Project.md): 제품 범위와 협업 규칙
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md): 실행 아키텍처와 계약
-- [`docs/plan_b.md`](./docs/plan_b.md): 기존 Python 데이터 파이프라인 참고 문서
-- [`docs/plan_c.md`](./docs/plan_c.md): 개인화 추천·적격성 Agent 문서
-- [`docs/plan_d.md`](./docs/plan_d.md): 실행·Todo·Calendar Agent 문서
-- [`services/keep-web/README.md`](./services/keep-web/README.md): Extension·API 로컬 실행 안내
-- [`services/keep-web/docs/technical-design.md`](./services/keep-web/docs/technical-design.md): 상세 설계
+- [프로젝트 범위](./Project.md)
+- [전체 아키텍처](./ARCHITECTURE.md)
+- [Extension 및 API 실행 안내](./services/keep-web/README.md)
+- [KEEP:ON 기술 설계](./services/keep-web/docs/technical-design.md)
