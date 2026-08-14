@@ -2,8 +2,9 @@ const SYSTEM_PROMPT = [
   'You are the KEEP:ON recommendation agent for Korean students and young adults.',
   'Evaluate ONLY the liked saved announcements supplied by the user. Return up to three strongest recommendations; do not add other announcements.',
   'Use only the supplied profile and announcement evidence. Never invent eligibility, deadlines, benefits, or interests.',
-  'Score each announcement from 0 to 100 using: interest fit (0-35), profile applicability (0-25), deadline urgency (0-20), and actionability or information completeness (0-20).',
-  'A heart means the user wants it considered. It is not a score bonus. Missing profile or deadline information must be called out neutrally, not treated as a disqualifier.',
+  'Each announcement includes deterministic eligibility and feasibility signals. Treat those signals as ground truth: never include eligibility=fail, and call out unknown or not_applicable neutrally instead of guessing.',
+  'Score each announcement from 0 to 100 using: interest fit (0-35), eligibility or profile applicability (0-25), feasibility (0-20), deadline urgency (0-10), and actionability or information completeness (0-10).',
+  'A heart means the user wants it considered. It is not a score bonus. Missing profile, deadline, or feasibility information must be called out neutrally, not treated as a disqualifier.',
   'Return Korean JSON only: {"recommendations":[{"opportunity_id":"...","score":0,"label":"지금 확인|추천|검토 필요","rationale":"complete Korean sentence","factors":["...","..."]}],"follow_up_questions":["..."]}.',
   'Keep rationale and factors concise, factual, and complete.',
 ].join('\n');
@@ -83,7 +84,7 @@ function finalResponseText(payload) {
     .map((part) => part.text).join('').trim();
 }
 
-function fallbackRecommendations(profile, opportunities) {
+function fallbackRecommendations(profile, opportunities, decisionById = new Map()) {
   const interests = (Array.isArray(profile?.interests) ? profile.interests : [])
     .map((interest) => compact(String(interest), 60).toLowerCase()).filter(Boolean);
   const today = new Date();
@@ -91,25 +92,53 @@ function fallbackRecommendations(profile, opportunities) {
   return opportunities.slice(0, 12).map((item) => {
     const evidence = `${item.title || ''} ${item.category || ''} ${item.summary || item.body || ''}`.toLowerCase();
     const matched = interests.filter((interest) => evidence.includes(interest));
+    const decision = decisionById.get(item.id) || {};
+    const eligibility = decision.eligibility || {};
+    const feasibility = decision.feasibility || {};
     const factors = [];
-    let score = 48;
+    let score = 20;
     if (matched.length) {
-      score += Math.min(30, matched.length * 15);
+      score += Math.min(35, matched.length * 18);
       factors.push(`관심사 ${matched.slice(0, 2).join(', ')} 관련`);
+    }
+    if (eligibility.overall === 'pass') {
+      score += 25;
+      factors.push('지원 조건 충족');
+    } else if (eligibility.overall === 'unknown') {
+      score += 12;
+      factors.push('지원 조건 확인 필요');
+    } else if (eligibility.overall === 'not_applicable') {
+      score += 12;
+      factors.push('개인 자격 조건 없음');
+    }
+    if (feasibility.level === 'high') {
+      score += 20;
+      factors.push('준비 여유 있음');
+    } else if (feasibility.level === 'medium') {
+      score += 12;
+      factors.push('준비 일정 확인');
+    } else if (feasibility.level === 'low') {
+      score += 3;
+      factors.push('일정 여유 확인 필요');
+    } else {
+      score += 8;
+      factors.push('실행 여건 확인 필요');
     }
     if (item.deadline && /^\d{4}-\d{2}-\d{2}$/.test(item.deadline)) {
       const days = Math.ceil((new Date(`${item.deadline}T00:00:00`).getTime() - today.getTime()) / 86400000);
-      if (days >= 0 && days <= 14) { score += 15; factors.push('마감 일정 확인'); }
-      else if (days >= 0) { score += 7; factors.push('일정 여유 있음'); }
+      if (days >= 0 && days <= 14) { score += 10; factors.push('마감 일정 확인'); }
+      else if (days >= 0) { score += 5; factors.push('일정 여유 있음'); }
     }
-    if (compact(item.summary || item.body, 80)) { score += 8; factors.push('핵심 정보 확인'); }
-    const rationale = matched.length
+    if (compact(item.summary || item.body, 80)) { score += 10; factors.push('핵심 정보 확인'); }
+    const rationale = eligibility.overall === 'unknown'
+      ? `지원 조건 일부가 확인되지 않아 원문을 함께 확인하며 추천합니다.`
+      : matched.length
       ? `관심사와 공고 내용이 맞아 맞춤 공고로 추천합니다.`
       : `좋아요로 저장한 공고 중 핵심 정보가 확인되어 먼저 살펴볼 만합니다.`;
     return {
       opportunity_id: item.id,
       score: Math.min(100, score),
-      label: matched.length ? '추천' : '검토 필요',
+      label: eligibility.overall === 'unknown' || feasibility.level === 'unknown' ? '검토 필요' : matched.length ? '추천' : '검토 필요',
       rationale,
       factors: factors.length ? factors : ['좋아요한 공고'],
     };
@@ -130,9 +159,12 @@ export class GeminiRecommendationAgent {
     this.timeoutMs = timeoutMs;
   }
 
-  async recommend({ profile, opportunities }) {
+  async recommend({ profile, opportunities, decisionSignals = [] }) {
     if (!this.apiKey) throw new Error('Gemini 추천 에이전트 설정이 없습니다.');
     if (!opportunities?.length) throw new Error('좋아요한 공고가 없습니다.');
+    const decisionById = new Map((Array.isArray(decisionSignals) ? decisionSignals : [])
+      .filter((signal) => signal && typeof signal.opportunity_id === 'string')
+      .map((signal) => [signal.opportunity_id, signal]));
     const context = {
       profile: profile || {},
       // 추천 카드는 최대 3개만 보여주므로, 긴 원문을 통째로 전송하지 않는다.
@@ -144,6 +176,8 @@ export class GeminiRecommendationAgent {
         author: compact(item.author, 100) || null,
         deadline: item.deadline || null,
         summary: compact(item.summary || item.body, 450),
+        eligibility: decisionById.get(item.id)?.eligibility || { overall: 'unknown', reason: '판정 정보 없음' },
+        feasibility: decisionById.get(item.id)?.feasibility || { level: 'unknown', warnings: ['판정 정보 없음'] },
       })),
     };
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
@@ -191,7 +225,7 @@ export class GeminiRecommendationAgent {
         return {
           provider: 'fallback',
           liked_opportunity_ids: opportunities.map((item) => item.id),
-          recommendations: fallbackRecommendations(profile, opportunities),
+          recommendations: fallbackRecommendations(profile, opportunities, decisionById),
           follow_up_questions: [],
         };
       }

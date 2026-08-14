@@ -86,7 +86,23 @@ async function runRecommendationAgent(payload, session, store, allOpportunities 
   const likedIds = [...new Set((Array.isArray(payload.liked_opportunity_ids) ? payload.liked_opportunity_ids : []).filter((id) => typeof id === 'string'))];
   const likedOpportunities = opportunities.filter((item) => likedIds.includes(item.id));
   if (!likedOpportunities.length) throw Object.assign(new Error('관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'), { statusCode: 422 });
-  return new GeminiRecommendationAgent().recommend({ profile: payload.profile || {}, opportunities: likedOpportunities });
+  const decisionPayload = await runAgent('recommendation_signals', {
+    profile: payload.profile || {}, liked_opportunity_ids: likedIds,
+  }, session, store);
+  const decisions = Array.isArray(decisionPayload.signals) ? decisionPayload.signals : [];
+  const decisionById = new Map(decisions.map((decision) => [decision.opportunity_id, decision]));
+  const candidates = likedOpportunities.filter((item) => decisionById.get(item.id)?.eligibility?.overall !== 'fail');
+  if (!candidates.length) {
+    return {
+      provider: 'rules',
+      liked_opportunity_ids: likedIds,
+      recommendations: [],
+      follow_up_questions: ['좋아요한 공고는 현재 프로필의 필수 지원 조건과 맞지 않아 추천에서 제외했어요. 프로필이나 원문 조건을 다시 확인해 주세요.'],
+    };
+  }
+  return new GeminiRecommendationAgent().recommend({
+    profile: payload.profile || {}, opportunities: candidates, decisionSignals: decisions,
+  });
 }
 
 async function serveStatic(requestPath, response) {

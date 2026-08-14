@@ -98,7 +98,7 @@ export async function evaluateOpportunity(opportunityId: string): Promise<Decisi
 }
 
 export type RecommendationFeed = {
-  provider?: 'gemini' | 'fallback';
+  provider?: 'gemini' | 'fallback' | 'rules';
   liked_opportunity_ids: string[];
   recommendations: Array<{ opportunity_id: string; score: number; rank: number; label: string; rationale: string; factors: string[] }>;
   follow_up_questions: string[];

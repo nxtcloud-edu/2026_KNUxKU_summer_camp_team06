@@ -92,9 +92,22 @@ def run(request: dict) -> dict:
         )
         return {"items": [item.model_dump(mode="json") for item in items]}
 
-    if command in {"recommend", "evaluate"}:
+    if command in {"recommend", "evaluate", "recommendation_signals"}:
         profile = ProfileSubmission.model_validate(request["profile"])
         likes = request.get("liked_opportunity_ids", [])
+        if command == "recommendation_signals":
+            signals = []
+            for opportunity_id in dict.fromkeys(likes):
+                entry = agent_service._by_id.get(opportunity_id)
+                if entry is None:
+                    continue
+                decision = evaluate_opportunity(profile.to_decision_profile(), entry.input)
+                signals.append({
+                    "opportunity_id": opportunity_id,
+                    "eligibility": decision.eligibility.model_dump(mode="json"),
+                    "feasibility": decision.feasibility.model_dump(mode="json"),
+                })
+            return {"signals": signals}
         feed = agent_service.recommend(profile, likes)
         if command == "recommend":
             return feed.model_dump(mode="json")

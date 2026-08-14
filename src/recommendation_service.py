@@ -78,6 +78,12 @@ class RecommendationService:
                 continue
             category = str(opportunity.get("category") or "")
             organization = str(opportunity.get("org") or "")
+            deadline_value = opportunity.get("deadline")
+            try:
+                deadline = date.fromisoformat(str(deadline_value)) if deadline_value else None
+            except ValueError:
+                # 마감일은 B의 정규식 파이프라인이 YYYY-MM-DD로 구조화한 값만 사용한다.
+                deadline = None
             entries.append(
                 CatalogEntry(
                     input=DecisionInput(
@@ -89,8 +95,7 @@ class RecommendationService:
                             categories=[category] if category else [],
                             source_url=opportunity.get("url"),
                         ),
-                        # B preserves deadline text but does not promise a parsed date.
-                        effort=OpportunityEffort(),
+                        effort=OpportunityEffort(deadline=deadline),
                     )
                 )
             )

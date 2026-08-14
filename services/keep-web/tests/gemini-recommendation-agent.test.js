@@ -32,6 +32,30 @@ test('Gemini 추천 에이전트는 좋아요한 공고만 점수순 카드 데�
   assert.equal(result.recommendations[0].score, 82);
 });
 
+test('Gemini 추천 에이전트는 결정론적 자격·실행 가능성 판정을 함께 Gemini에 전달한다', async () => {
+  let request = null;
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async (_url, options) => {
+      request = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"recommendations":[{"opportunity_id":"saved-1","score":76,"label":"검토 필요","rationale":"지원 조건 일부가 확인되지 않아 원문 확인이 필요합니다.","factors":["지원 조건 확인 필요"]}],"follow_up_questions":[]}' }] } }] }) };
+    },
+  });
+  await agent.recommend({
+    profile: {},
+    opportunities: [{ id: 'saved-1', title: '청년 교육 공고', summary: '참가자 모집' }],
+    decisionSignals: [{
+      opportunity_id: 'saved-1',
+      eligibility: { overall: 'unknown', reason: '지역 정보가 없습니다.' },
+      feasibility: { level: 'unknown', warnings: ['마감일 정보가 없습니다.'] },
+    }],
+  });
+  const context = JSON.parse(request.contents[0].parts[0].text);
+  assert.equal(context.liked_announcements[0].eligibility.overall, 'unknown');
+  assert.equal(context.liked_announcements[0].feasibility.level, 'unknown');
+  assert.match(request.systemInstruction.parts[0].text, /deterministic eligibility and feasibility/i);
+});
+
 test('Gemini 추천 에이전트는 코드 펜스로 감싼 JSON도 처리한다', async () => {
   const agent = new GeminiRecommendationAgent({
     apiKey: 'test-key',
