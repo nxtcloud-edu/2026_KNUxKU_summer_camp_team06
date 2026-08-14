@@ -272,7 +272,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
           source_metadata: metadata,
           extraction_status: 'PENDING',
         }, session.userId, session.accessToken);
-        if (sourceType !== 'text' && typeof keeperStore.createIntakeFile === 'function') {
+        if (['image', 'pdf'].includes(sourceType) && typeof keeperStore.createIntakeFile === 'function') {
           await keeperStore.createIntakeFile({
             intake_id: intake.id, file_kind: sourceType, object_path: metadata.object_path,
             original_filename: metadata.original_filename || 'upload', mime_type: metadata.mime_type,
