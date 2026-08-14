@@ -31,3 +31,14 @@ test('Gemini 추천 에이전트는 좋아요한 공고만 점수순 카드 데�
   assert.deepEqual(result.recommendations.map((item) => item.rank), [1, 2]);
   assert.equal(result.recommendations[0].score, 82);
 });
+
+test('Gemini 추천 에이전트는 코드 펜스로 감싼 JSON도 처리한다', async () => {
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async () => ({ ok: true, json: async () => ({
+      candidates: [{ content: { parts: [{ text: '```json\n{"recommendations":[{"opportunity_id":"saved-1","score":80,"label":"추천","rationale":"저장한 공고의 핵심 내용이 분명합니다.","factors":["정보가 구체적"]}],"follow_up_questions":[]}\n```' }] } }],
+    }) }),
+  });
+  const result = await agent.recommend({ profile: {}, opportunities: [{ id: 'saved-1', title: '테스트 공고' }] });
+  assert.equal(result.recommendations[0].opportunity_id, 'saved-1');
+});

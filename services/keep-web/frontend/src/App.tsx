@@ -67,8 +67,13 @@ import { toggleLikedOpportunity, useLikedOpportunities } from './lib/likedStore'
 function HomePage({ loading }: { loading: boolean }) {
   const decisions = useDecisions();
   const likedIds = useLikedOpportunities();
+  const likedOpportunityIds = useMemo(
+    () => likedIds.filter((id) => opportunities.some((item) => item.id === id)),
+    [likedIds],
+  );
   const [recommendations, setRecommendations] = useState<RecommendationFeed | null>(null);
   const [recommendationState, setRecommendationState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [recommendationError, setRecommendationError] = useState('');
   // 보관한 기회는 추천에서 빠져야 목록이 정리되는 느낌이 생긴다.
   const active = useMemo(
     () => opportunities.filter((item) => decisionOf(decisions, item) !== 'archived'),
@@ -106,14 +111,22 @@ function HomePage({ loading }: { loading: boolean }) {
         type="button"
         className="ai-recommend-button"
         onClick={async () => {
-          if (!likedIds.length) { setRecommendationState('error'); return; }
+          if (!likedOpportunityIds.length) {
+            setRecommendationError('현재 계정의 저장 공고에서 하트를 눌러 추천을 시작해 주세요.');
+            setRecommendationState('error');
+            return;
+          }
+          setRecommendationError('');
           setRecommendationState('loading');
-          try { setRecommendations(await getRecommendations(likedIds)); setRecommendationState('idle'); }
-          catch { setRecommendationState('error'); }
+          try { setRecommendations(await getRecommendations(likedOpportunityIds)); setRecommendationState('idle'); }
+          catch (error) {
+            setRecommendationError(error instanceof Error ? error.message : '추천 결과를 준비하지 못했습니다. 다시 눌러 주세요.');
+            setRecommendationState('error');
+          }
         }}
       >
         <img src="/ai-recommendation.png" alt="" />
-        <span><b>AI 추천</b><small>{likedIds.length ? `좋아요 ${likedIds.length}개 기준` : '하트를 눌러 시작'}</small></span>
+        <span><b>AI 추천</b><small>{likedOpportunityIds.length ? `좋아요 ${likedOpportunityIds.length}개 기준` : '하트를 눌러 시작'}</small></span>
       </button>
       {recommendationState === 'loading' && (
         <AgentProgressCard
@@ -141,7 +154,7 @@ function HomePage({ loading }: { loading: boolean }) {
           })}
           </div>
           {recommendations?.follow_up_questions.map((question) => <p key={question} className="ai-recommend-note">{question}</p>)}
-          {recommendationState === 'error' && <p className="ai-recommend-note">{likedIds.length ? '추천 결과를 준비하지 못했어요. 다시 눌러 주세요.' : '관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'}</p>}
+          {recommendationState === 'error' && <p className="ai-recommend-note">{recommendationError}</p>}
         </section>
       )}
     </div>

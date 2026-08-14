@@ -39,6 +39,18 @@ function clampScore(value) {
   return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null;
 }
 
+function parseGeminiJson(value) {
+  const raw = compact(value, 20_000);
+  const unwrapped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try { return JSON.parse(unwrapped); } catch {
+    const start = unwrapped.indexOf('{');
+    const end = unwrapped.lastIndexOf('}');
+    if (start < 0 || end <= start) throw new Error('Gemini 추천 응답의 JSON 형식이 올바르지 않습니다.');
+    try { return JSON.parse(unwrapped.slice(start, end + 1)); }
+    catch { throw new Error('Gemini 추천 응답의 JSON 형식이 올바르지 않습니다.'); }
+  }
+}
+
 export class GeminiRecommendationAgent {
   constructor({
     apiKey = process.env.GEMINI_API_KEY,
@@ -91,7 +103,7 @@ export class GeminiRecommendationAgent {
       let raw = '';
       try { raw = await request(true); } catch { raw = await request(false); }
       if (!raw) throw new Error('Gemini 추천 응답이 비어 있습니다.');
-      const parsed = JSON.parse(raw);
+      const parsed = parseGeminiJson(raw);
       const allowedIds = new Set(opportunities.map((item) => item.id));
       const seen = new Set();
       const recommendations = (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
