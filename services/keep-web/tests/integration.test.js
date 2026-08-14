@@ -121,6 +121,39 @@ test('Threads 분류와 동일 URL 중복 방지를 확인한다', async (t) => 
   assert.equal(list.items[0].title, '대학생 무료 혜택');
 });
 
+test('서로 다른 Threads 게시물은 새 저장 후에도 모두 남는다', async (t) => {
+  const app = createKeeperServer({ port: 0 });
+  const address = await app.start();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.stop());
+
+  const send = (url, title) => fetch(`${baseUrl}/v1/intakes`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload({
+      platform: 'threads',
+      url,
+      title,
+      body: `${title}에 대한 안내입니다.`,
+      categoryText: 'Support'
+    }))
+  });
+  const first = await (await send('https://www.threads.com/@choi.openai/post/Db_fhx_D9ry', '첫 번째 게시물')).json();
+  await waitForTerminal(baseUrl, first.intake_id);
+  const second = await (await send('https://www.threads.com/@choi.openai/post/Db-NNgQj67U', '두 번째 게시물')).json();
+  await waitForTerminal(baseUrl, second.intake_id);
+
+  const list = await (await fetch(`${baseUrl}/v1/opportunities`)).json();
+  assert.equal(list.items.length, 2);
+  assert.deepEqual(
+    new Set(list.items.map((item) => item.canonical_url)),
+    new Set([
+      'https://www.threads.com/@choi.openai/post/Db_fhx_D9ry',
+      'https://www.threads.com/@choi.openai/post/Db-NNgQj67U',
+    ])
+  );
+});
+
 test('근거 부족 입력도 최소 카드와 NEEDS_REVIEW로 보존한다', async (t) => {
   const app = createKeeperServer({ port: 0 });
   const address = await app.start();

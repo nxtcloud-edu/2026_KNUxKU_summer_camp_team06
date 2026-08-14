@@ -239,8 +239,19 @@ function collectPageEvidence() {
       .find((url) => /^https:\/\//i.test(url) && !/profile|avatar/i.test(url)) || '';
   }
   // Threads의 OG 이미지는 실제 게시물 사진이 아닌 Threads 로고인 경우가 많다.
-  // 현재 게시물 ID의 /media 링크 안 이미지만 쓰고, 없으면 대표 이미지 없이 저장한다.
+  // 현재 게시물 ID의 /media 링크 안 이미지를 우선한다. 단, 영상 게시물은 /media
+  // 링크가 없고 og:image만 실제 커버 프레임인 경우가 있으므로 유효한 CDN 이미지는
+  // 비우지 않고 그대로 쓴다.
   if (platform === 'threads') {
+    const isThreadsContentMedia = (value) => {
+      try {
+        const url = new URL(value);
+        return /^https:$/.test(url.protocol)
+          && (url.hostname.startsWith('scontent-') || url.hostname.includes('.fbcdn.net'));
+      } catch {
+        return false;
+      }
+    };
     const sourcePostPath = new URL(sourceUrl).pathname.replace(/\/$/, '');
     const threadMediaLink = Array.from(document.querySelectorAll('a[href]')).find((anchor) => {
       try {
@@ -259,7 +270,7 @@ function collectPageEvidence() {
       .filter((image) => /^https:\/\//i.test(image.url) && !/profile|avatar|emoji/i.test(image.alt))
       .sort((a, b) => b.area - a.area);
     if (threadMedia[0]?.area > 30_000) thumbnailUrl = threadMedia[0].url;
-    else thumbnailUrl = '';
+    else if (!isThreadsContentMedia(thumbnailUrl)) thumbnailUrl = '';
   }
   const domText = cleanText((document.querySelector('article') || document.querySelector('[role="article"]') || document.querySelector('main') || document.body)?.innerText || '');
   const cleanInstagramCaption = (value) => cleanText(value)

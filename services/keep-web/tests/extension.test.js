@@ -17,6 +17,8 @@ test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언
   assert.match(popup, /og:description/);
   assert.match(popup, /og:image/);
   assert.match(popup, /og:image:secure_url/);
+  assert.match(popup, /isThreadsContentMedia/);
+  assert.match(popup, /scontent-/);
   assert.match(popup, /querySelectorAll\('img'\)/);
   assert.match(popup, /og:url/);
   assert.match(popup, /reels/);
