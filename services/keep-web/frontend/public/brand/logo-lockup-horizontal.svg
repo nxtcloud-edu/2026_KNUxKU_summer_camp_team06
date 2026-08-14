@@ -4,5 +4,5 @@
     <path d="M 100 114 A 34 34 0 1 1 66 148" fill="none" stroke="#F5A623" stroke-width="16" stroke-linecap="round"/>
     <circle cx="100" cy="62" r="34" fill="#2A4A9B"/>
   </g>
-  <text x="185" y="118" font-size="110" font-family="'Archivo Black','Apple SD Gothic Neo','Segoe UI',sans-serif" letter-spacing="1" fill="#1C1B2E">KEEP<tspan fill="#F5A623">:</tspan>ON</text>
+  <text x="185" y="118" font-size="110" font-family="'Archivo Black','Apple SD Gothic Neo','Segoe UI',sans-serif" font-weight="900" letter-spacing="1" fill="#1C1B2E" stroke="#1C1B2E" stroke-width="1.2" paint-order="stroke">KEEP<tspan fill="#F5A623" stroke="#F5A623">:</tspan>ON</text>
 </svg>
