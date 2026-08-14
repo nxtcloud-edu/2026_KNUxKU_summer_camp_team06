@@ -251,6 +251,14 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
+function occursOnDay(event: Event, day: Date) {
+  const startOfDay = new Date(day);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
+  return event.startTime < endOfDay && event.endTime >= startOfDay;
+}
+
 const sectionLabel =
   'text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground';
 
@@ -1647,7 +1655,7 @@ function MonthView({
   }
 
   const getEventsForDay = (date: Date) =>
-    events.filter((event) => isSameDay(event.startTime, date));
+    events.filter((event) => occursOnDay(event, date));
 
   return (
     <Card className="overflow-hidden">

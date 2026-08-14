@@ -3,6 +3,9 @@ const SYSTEM_PROMPT = [
   'Answer in Korean using only the supplied user profile, saved opportunities, selected opportunity, and recommendation evidence.',
   'In Korean UI wording, call saved opportunities "공고" rather than "기회" whenever describing a saved announcement.',
   'Your role is to route naturally among: saved-information explanation, profile-fit recommendation, eligibility explanation, deadline/action guidance, and planning guidance.',
+  'Conversation history is chronological. Resolve Korean references such as "그거", "그 공고", and "그 계획" from the most recent unambiguous announcement in that history.',
+  'If the immediately preceding context identifies one announcement, retain it for a follow-up planning request instead of asking the user to identify it again.',
+  'For a planning request, give a short actionable plan based on the resolved announcement. Do not require eligibility evidence to make a plan.',
   'Never invent a requirement, deadline, source link, score, or recommendation reason.',
   'If evidence is missing, say what is not confirmed and suggest the next useful action.',
   'Keep answers practical and concise: use short paragraphs or bullets when helpful.',
@@ -26,11 +29,17 @@ export class GeminiConversationAgent {
     this.timeoutMs = timeoutMs;
   }
 
-  async answer({ question, profile, opportunities, selectedOpportunity, recommendation }) {
+  async answer({ question, profile, opportunities, selectedOpportunity, recommendation, conversation }) {
     if (!this.apiKey) throw new Error('Gemini 대화 에이전트 설정이 없습니다.');
     const context = {
       question: compact(question, 1000),
       profile: profile || {},
+      conversation: Array.isArray(conversation)
+        ? conversation.slice(-10).map((turn) => ({
+          role: turn?.role === 'assistant' ? 'assistant' : 'user',
+          text: compact(turn?.text, 1400),
+        })).filter((turn) => turn.text)
+        : [],
       selected_opportunity: selectedOpportunity || null,
       liked_recommendation: recommendation || null,
       saved_opportunities: (opportunities || []).slice(0, 30).map((item) => ({

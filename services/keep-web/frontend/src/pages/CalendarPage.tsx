@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 
 import {
   EventManager,
@@ -7,7 +6,6 @@ import {
   type EventColor,
   type EventManagerLabels,
 } from '@/components/ui/event-manager';
-import { opportunities } from '@/data';
 import { decisionOf } from '@/lib/decisionView';
 import { useDecisions } from '@/lib/decisionStore';
 import { formatDday } from '@/lib/dday';
@@ -157,23 +155,12 @@ export function CalendarPage() {
     setTaskDue(opportunityId, taskId, patch.startTime);
   }, []);
 
-  const joinedCount = opportunities.filter((item) => decisionOf(decisions, item) === 'joined').length;
-
   return (
     <div className="page">
       <section className="page-intro">
         <p className="section-label">DEADLINE MAP</p>
-        <h2>
-          마감에서 거꾸로
-          <br />
-          계산한 일정이에요
-        </h2>
-        <p>
-          {joinedCount > 0
-            ? '참여하기로 한 기회의 준비 단계와 마감을 함께 보여드려요. 단계를 끌어 옮기면 실행 계획도 같이 바뀝니다.'
-            : '지금은 마감만 표시돼요. 기회를 열어 ‘이거 할래!’를 누르면 준비 단계가 여기에 채워집니다.'}{' '}
-          <Link to="/plan" className="inline-link">실행 계획 보기</Link>
-        </p>
+        <h2>해야 할 일을 작은 단계로</h2>
+        <p>참여하기로 한 공고의 준비 단계와 마감을 함께 보여드려요. 단계를 끌어 옮기면 실행 계획도 같이 바뀝니다.</p>
       </section>
 
       <EventManager

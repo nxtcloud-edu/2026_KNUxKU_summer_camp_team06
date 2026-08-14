@@ -327,12 +327,20 @@ function collectPageEvidence() {
     const normalized = cleanText(value);
     return normalized.length > 0 && normalized.length <= 280 && fallbackPattern.test(normalized);
   };
+  // Threads는 게시물 본문을 document.title에 넣고, DOM 본문에는 메뉴와 댓글을
+  // 함께 렌더링한다. OG 설명이 비어 있으면 title을 우선해야 현재 게시물만 저장된다.
+  const threadsPostTitle = platform === 'threads' ? cleanText(document.title) : '';
+  const hasThreadsPostTitle = threadsPostTitle.length >= 20
+    && !looksLikeFallback(threadsPostTitle)
+    && !/^(?:threads|새로운 스레드)$/i.test(threadsPostTitle);
   // OG 메타가 로그인 안내로 캐시되어도 실제 DOM에 게시물 본문이 있으면
   // DOM 본문을 우선한다. DOM도 짧은 로그인 안내인 경우에만 접근 실패로 본다.
   // Instagram은 릴스/일반 게시물 모두 영상이 아니라 캡션만 본문으로 취급한다.
   const bodySource = platform === 'instagram'
     ? instagramCaption
-    : looksLikeFallback(description) && domText.length > 280 ? domText : description || domText;
+    : platform === 'threads'
+      ? (description && !looksLikeFallback(description) ? description : hasThreadsPostTitle ? threadsPostTitle : domText)
+      : looksLikeFallback(description) && domText.length > 280 ? domText : description || domText;
   const bodyText = cleanText(bodySource).slice(0, 12000);
   const genericTitle = /^(threads|instagram)(의|에서| )|on (threads|instagram)$/i.test(ogTitle)
     || /^(threads|instagram)$/i.test(ogTitle);

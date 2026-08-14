@@ -204,7 +204,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
         }
         const answer = await new GeminiConversationAgent().answer({
           question: payload.question, profile: payload.profile, opportunities,
-          selectedOpportunity: selected, recommendation,
+          selectedOpportunity: selected, recommendation, conversation: payload.conversation,
         });
         sendJson(response, 200, { answer, source: 'gemini' });
         return;

@@ -1005,6 +1005,9 @@ img { max-width: 100%; display: block; }
 .row-arrow { color: var(--ink-3); transition: transform var(--dur-2) var(--ease-out), color var(--dur-2) ease; }
 .opportunity-row:hover .row-arrow { transform: translateX(4px); color: var(--accent-color); }
 .row-like-button { position: absolute; z-index: 2; top: 14px; right: 14px; width: 30px; height: 30px; }
+.row-delete-button { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: var(--white); color: var(--ink-3); }
+.row-delete-button:hover { border-color: #ef7080; background: #fff1f3; color: #d83f55; }
+.row-delete-button:disabled { cursor: wait; opacity: .55; }
 
 .row-decision {
   padding: 5px 10px;

@@ -30,7 +30,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { AppShell } from './components/AppShell';
 import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
-import { askConversation, createSourceIntake, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
+import { askConversation, createSourceIntake, deleteOpportunity, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
 import { useAuth } from './lib/auth';
 import { formatDday } from './lib/dday';
 import { OrderTracking } from './components/ui/order-tracking';
@@ -207,6 +207,7 @@ function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [deletedVersion, setDeletedVersion] = useState(0);
   const decisions = useDecisions();
   const recent = useRecentQueries();
   const filters = ['전체', '마감 임박', '확인 필요', '참여 결정', '나중에', '보관'];
@@ -255,7 +256,7 @@ function SavedPage() {
         || (filter === '나중에' && decision === 'later')
       );
     return matchesQuery && matchesFilter;
-  }), [decisions, filter, query]);
+  }), [decisions, deletedVersion, filter, query]);
 
   // 첫 사용자(0건)와 필터 결과 0건은 다른 화면이어야 한다.
   const emptyVariant = useMemo<SavedEmptyVariant>(() => {
@@ -264,7 +265,7 @@ function SavedPage() {
     if (!visible.length) return filter === '보관' ? 'emptyTab' : 'allArchived';
     if (query.trim() || filter === '전체') return 'noResults';
     return 'emptyTab';
-  }, [decisions, filter, query]);
+  }, [decisions, deletedVersion, filter, query]);
 
   return (
     <div className="page">
@@ -318,7 +319,15 @@ function SavedPage() {
       </div>
       <div className="library-summary"><strong>{filtered.length}</strong><span>개의 저장 정보</span></div>
       <div className="opportunity-list">
-        {filtered.map((item) => <OpportunityRow key={item.id} item={item} decision={decisionOf(decisions, item)} />)}
+        {filtered.map((item) => <OpportunityRow
+          key={item.id}
+          item={item}
+          decision={decisionOf(decisions, item)}
+          onDeleted={(id) => {
+            setOpportunities(opportunities.filter((candidate) => candidate.id !== id));
+            setDeletedVersion((version) => version + 1);
+          }}
+        />)}
       </div>
       {!filtered.length && (
         <SavedEmptyState
@@ -361,11 +370,27 @@ function UploadProgress({ file }: { file: { name: string; status: string } }) {
   );
 }
 
-function OpportunityRow({ item, decision }: { item: Opportunity; decision: DecisionState }) {
+function OpportunityRow({ item, decision, onDeleted }: { item: Opportunity; decision: DecisionState; onDeleted: (id: string) => void }) {
   const liked = useLikedOpportunities().includes(item.id);
+  const [deleting, setDeleting] = useState(false);
+  const remove = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!window.confirm(`'${item.title}' 정보를 삭제할까요?`)) return;
+    setDeleting(true);
+    try {
+      await deleteOpportunity(item.id);
+      onDeleted(item.id);
+    } catch {
+      window.alert('삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setDeleting(false);
+    }
+  };
   return (
     <Link to={`/saved/${item.id}`} className={`opportunity-row accent-${item.accent}`}>
       <button className={`like-button row-like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={(event) => { event.preventDefault(); toggleLikedOpportunity(item.id); }}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button>
+      <button className="row-delete-button" type="button" aria-label={`${item.title} 삭제`} onClick={remove} disabled={deleting}><Trash2 size={15} /></button>
       <div className="row-main">
         <div className="row-meta">
           <span>{item.category}</span>
@@ -575,7 +600,7 @@ function PlanPage() {
     <div className="page">
       <section className="page-intro narrow">
         <p className="section-label">ACTION PLAN</p>
-        <h2>생각은 짧게,<br />실행은 작게</h2>
+        <h2>생각은 짧게, 실행은 작게</h2>
         <p>계획 초안은 검토 후 캘린더에 반영할 수 있어요.</p>
       </section>
       <div className="plan-stack">
@@ -709,8 +734,11 @@ function ChatPage() {
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ id: number; role: 'assistant' | 'user'; text: string }>>([]);
+  const messagesRef = useRef(messages);
   const [usedSuggestions, setUsedSuggestions] = useState<Set<string>>(() => new Set());
   const askedRef = useRef<string | null>(null);
+
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   const send = useCallback(async (text: string, usedSuggestion = false) => {
     const value = text.trim();
@@ -723,7 +751,11 @@ function ChatPage() {
     setMessages((current) => [...current, { id, role: 'user', text: value }, { id: id + 1, role: 'assistant', text: preparing }]);
     setInput('');
     try {
-      const answer = await askConversation(value, item?.id || null, likedIds);
+      const conversation = messagesRef.current
+        .filter((message) => !message.text.includes('답변을 준비하고 있어요…'))
+        .slice(-10)
+        .map(({ role, text }) => ({ role, text }));
+      const answer = await askConversation(value, item?.id || null, likedIds, conversation);
       setMessages((current) => current.map((message) => message.id === id + 1 ? { ...message, text: answer } : message));
     } catch (error) {
       setMessages((current) => current.map((message) => message.id === id + 1 ? { ...message, text: error instanceof Error ? error.message : 'AI 대화 응답을 받지 못했습니다.' } : message));

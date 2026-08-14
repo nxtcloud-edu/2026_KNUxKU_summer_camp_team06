@@ -99,10 +99,32 @@ export async function getRecommendations(likedOpportunityIds: string[]): Promise
   return body;
 }
 
-export async function askConversation(question: string, opportunityId: string | null, likedOpportunityIds: string[]) {
+export async function deleteOpportunity(opportunityId: string) {
+  const response = await authorizedFetch(`/v1/opportunities/${encodeURIComponent(opportunityId)}`, {
+    method: 'DELETE',
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || body.error || '저장 정보를 삭제하지 못했습니다.');
+  return body;
+}
+
+export type ConversationTurn = { role: 'assistant' | 'user'; text: string };
+
+export async function askConversation(
+  question: string,
+  opportunityId: string | null,
+  likedOpportunityIds: string[],
+  conversation: ConversationTurn[] = [],
+) {
   const response = await authorizedFetch('/v1/agent/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ question, opportunity_id: opportunityId, liked_opportunity_ids: likedOpportunityIds, profile: loadProfile() }),
+    body: JSON.stringify({
+      question,
+      opportunity_id: opportunityId,
+      liked_opportunity_ids: likedOpportunityIds,
+      conversation,
+      profile: loadProfile(),
+    }),
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message || body.error || 'AI 대화 응답을 받지 못했습니다.');
