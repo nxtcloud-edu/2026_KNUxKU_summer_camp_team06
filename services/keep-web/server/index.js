@@ -9,7 +9,6 @@ import { InMemoryKeeperStore, SupabaseKeeperStore } from './store.js';
 import { SupabaseAuthService } from './auth.js';
 import { processIntake } from './workflow.js';
 import { GeminiConversationAgent } from './agents/chat-agent.js';
-import { GeminiRecommendationAgent } from './agents/recommendation-agent.js';
 import { enqueueIntake, taskQueueConfigured } from './task-queue.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,7 +61,11 @@ async function runAgent(command, payload, session, store) {
   const normalizations = await store.listNormalizedOpportunities(session.userId, session.accessToken);
   const result = await new Promise((resolve, reject) => {
     const projectPython = path.resolve(ROOT, '..', '..', '.venv', 'bin', 'python');
-    const python = process.env.AGENT_PYTHON || (existsSync(projectPython) ? projectPython : 'python3');
+    const windowsProjectPython = path.resolve(ROOT, '..', '..', '.venv', 'Scripts', 'python.exe');
+    const python = process.env.AGENT_PYTHON
+      || (existsSync(projectPython) ? projectPython : null)
+      || (existsSync(windowsProjectPython) ? windowsProjectPython : null)
+      || (process.platform === 'win32' ? 'python' : 'python3');
     const child = spawn(python, [path.join(ROOT, 'server', 'agent-bridge.py')], {
       cwd: path.resolve(ROOT, '..'), stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -79,14 +82,6 @@ async function runAgent(command, payload, session, store) {
   });
   if (result.error) throw Object.assign(new Error(result.error), { statusCode: 422 });
   return result;
-}
-
-async function runRecommendationAgent(payload, session, store, allOpportunities = null) {
-  const opportunities = allOpportunities || await store.listOpportunities(session.userId, session.accessToken);
-  const likedIds = [...new Set((Array.isArray(payload.liked_opportunity_ids) ? payload.liked_opportunity_ids : []).filter((id) => typeof id === 'string'))];
-  const likedOpportunities = opportunities.filter((item) => likedIds.includes(item.id));
-  if (!likedOpportunities.length) throw Object.assign(new Error('관심 있는 공고의 하트를 눌러 추천 기준을 만들어 주세요.'), { statusCode: 422 });
-  return new GeminiRecommendationAgent().recommend({ profile: payload.profile || {}, opportunities: likedOpportunities });
 }
 
 async function serveStatic(requestPath, response) {
@@ -190,7 +185,9 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/agent/recommendations') {
-        sendJson(response, 200, await runRecommendationAgent(await readJson(request), session, keeperStore));
+        // C의 결정형 추천 엔진을 사용해 Gemini의 자유 형식 JSON 오류로 카드가
+        // 사라지는 문제를 막는다. 좋아요는 추천 선호 신호로 전달된다.
+        sendJson(response, 200, await runAgent('recommend', await readJson(request), session, keeperStore));
         return;
       }
 
@@ -211,7 +208,7 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
         let recommendation = null;
         if (Array.isArray(payload.liked_opportunity_ids) && payload.liked_opportunity_ids.length) {
           try {
-            recommendation = await runRecommendationAgent(payload, session, keeperStore, opportunities);
+            recommendation = await runAgent('recommend', payload, session, keeperStore);
           } catch { recommendation = null; }
         }
         const answer = await new GeminiConversationAgent().answer({

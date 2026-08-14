@@ -16,7 +16,6 @@ from src.execution.store import ExecutionStore
 from src.decision_engine import evaluate_opportunity
 from src.c_integration import execution_decision_for_selected
 from src.recommendation_service import ProfileSubmission, RecommendationService
-from src.bridge_server import build_normalize_response
 
 
 def opportunity_record(row: dict) -> dict:
@@ -76,9 +75,37 @@ def profile_for_execution(user_id: str, payload: dict) -> UserProfile:
     )
 
 
+def recommendation_card_feed(feed) -> dict:
+    """Adapt C's decision result to the concise recommendation-card contract."""
+
+    label_by_level = {
+        "high": "추천",
+        "medium": "검토 필요",
+        "low": "지금 확인",
+    }
+    cards = []
+    for decision in feed.recommendations:
+        ranking = decision.ranking
+        cards.append({
+            "opportunity_id": ranking.opportunity_id,
+            "score": ranking.score,
+            "rank": ranking.rank or len(cards) + 1,
+            "label": label_by_level.get(ranking.recommendation.value, "조건 확인 필요"),
+            "rationale": decision.eligibility.reason,
+            "factors": ranking.reasons[:4],
+        })
+    return {
+        "liked_opportunity_ids": feed.liked_opportunity_ids,
+        "recommendations": cards,
+        "follow_up_questions": feed.follow_up_questions,
+    }
+
+
 def run(request: dict) -> dict:
     command = request["command"]
     if command == "normalize":
+        # Recommendation and eligibility calls must not require Flask.
+        from src.bridge_server import build_normalize_response
         # extraction/normalization은 B의 결정론적 정규식 파이프라인(src/bridge_server.py)을
         # 그대로 서브프로세스 경로로 태운다 — 별도 상태(opportunities/normalizations)가
         # 필요 없어서 다른 커맨드보다 앞에서 처리한다.
@@ -97,7 +124,7 @@ def run(request: dict) -> dict:
         likes = request.get("liked_opportunity_ids", [])
         feed = agent_service.recommend(profile, likes)
         if command == "recommend":
-            return feed.model_dump(mode="json")
+            return recommendation_card_feed(feed)
         opportunity_id = request["opportunity_id"]
         entry = agent_service._by_id.get(opportunity_id)
         if entry is None:
