@@ -4,7 +4,8 @@ import { createKeeperServer } from '../server/index.js';
 
 async function waitForTerminal(baseUrl, intakeId, accessToken = '') {
   const terminal = new Set(['READY_FOR_REVIEW', 'NEEDS_REVIEW', 'UNSUPPORTED', 'FAILED', 'CANCELLED']);
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  // 결정론적 Python 정규화 프로세스의 초기 실행 시간을 허용한다.
+  for (let attempt = 0; attempt < 180; attempt += 1) {
     const response = await fetch(`${baseUrl}/v1/intakes/${intakeId}`, {
       headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {}
     });
