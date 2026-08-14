@@ -30,7 +30,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { AppShell } from './components/AppShell';
 import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
-import { askConversation, createSourceIntake, deleteOpportunity, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
+import { askConversation, createDirectIntake, createSourceIntake, deleteOpportunity, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
 import { useAuth } from './lib/auth';
 import { formatDday } from './lib/dday';
 import { OrderTracking } from './components/ui/order-tracking';
@@ -220,6 +220,7 @@ function SavedPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('전체');
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [directValue, setDirectValue] = useState('');
   const [deletedVersion, setDeletedVersion] = useState(0);
   const decisions = useDecisions();
   const recent = useRecentQueries();
@@ -249,6 +250,21 @@ function SavedPage() {
       } catch (error) {
         setUploads((current) => current.map((entry) => entry.id === added[index].id ? { ...entry, status: error instanceof Error ? error.message : '분석 실패' } : entry));
       }
+    }
+  };
+  const addDirect = async () => {
+    const value = directValue.trim();
+    if (!value) return;
+    const id = `${Date.now()}-direct`;
+    const name = /^https?:\/\//i.test(value) ? '직접 입력 링크' : '직접 입력 텍스트';
+    setUploads((current) => [{ id, name, status: '정보를 정리하는 중' }, ...current]);
+    setDirectValue('');
+    try {
+      await createDirectIntake(value);
+      setOpportunities(await getMyOpportunities());
+      setUploads((current) => current.map((entry) => entry.id === id ? { ...entry, status: '정리 완료' } : entry));
+    } catch (error) {
+      setUploads((current) => current.map((entry) => entry.id === id ? { ...entry, status: error instanceof Error ? error.message : '분석 실패' } : entry));
     }
   };
   const filtered = useMemo(() => opportunities.filter((item) => {
@@ -292,6 +308,10 @@ function SavedPage() {
         <span><strong>저장한 파일을 여기로 끌어다 놓으세요</strong><small>이미지, PDF, 텍스트 파일을 추가하면 기회 정보로 정리해드려요.</small></span>
         <span className="upload-action">파일 선택</span>
       </label>
+      <div className="direct-save-form">
+        <textarea value={directValue} onChange={(event) => setDirectValue(event.target.value)} placeholder="사이트 링크 또는 텍스트를 붙여넣으세요" />
+        <button type="button" className="primary-action" onClick={() => void addDirect()} disabled={!directValue.trim()}>정리함에 추가</button>
+      </div>
       {uploads.length > 0 && (
         <div className="upload-queue" aria-live="polite">
           {uploads.map((file) => <UploadProgress key={file.id} file={file} />)}

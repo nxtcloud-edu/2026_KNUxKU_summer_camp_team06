@@ -765,6 +765,10 @@ img { max-width: 100%; display: block; }
 .upload-queue svg { color: var(--success); animation: check-pop var(--dur-3) var(--ease-spring) both; }
 .upload-queue small { color: var(--ink-3); font-size: var(--text-2xs); }
 .upload-queue-error { background: #fff0f0 !important; color: #ad3131 !important; }
+.direct-save-form { display: flex; gap: 12px; margin: 14px 0 24px; }
+.direct-save-form textarea { flex: 1; min-height: 72px; resize: vertical; padding: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--white); color: var(--ink); font: inherit; }
+.direct-save-form textarea:focus { outline: 2px solid color-mix(in srgb, var(--primary) 30%, transparent); border-color: var(--primary); }
+.direct-save-form .primary-action { align-self: flex-end; }
 .agent-progress-card {
   width: min(100%, 430px);
   padding: 14px;

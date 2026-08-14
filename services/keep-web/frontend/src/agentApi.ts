@@ -63,6 +63,20 @@ export async function createSourceIntake(file: File) {
   return body as { intake_id: string };
 }
 
+export async function createDirectIntake(value: string) {
+  const trimmed = value.trim();
+  const isLink = /^https?:\/\/\S+$/i.test(trimmed);
+  const response = await authorizedFetch('/v1/intakes/source', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(isLink
+      ? { source_type: 'link', source_url: trimmed, source_metadata: { original_filename: '직접 입력 링크' } }
+      : { source_type: 'text', source_text: trimmed.slice(0, 12000), source_metadata: { original_filename: '직접 입력 텍스트' } }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message || '정보 저장을 시작하지 못했습니다.');
+  return body as { intake_id: string };
+}
+
 export async function startExecution(opportunityId: string, likedOpportunityIds: string[]) {
   const response = await authorizedFetch('/v1/agent/execution', {
     method: 'POST', headers: { 'content-type': 'application/json' },

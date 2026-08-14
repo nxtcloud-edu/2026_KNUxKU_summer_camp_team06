@@ -32,6 +32,7 @@ export async function processIntake(store, intakeId, session) {
       const sourceText = await new GeminiSourceExtractionAgent().extract({
         sourceType: intake.source_type,
         sourceText: intake.source_text,
+        sourceUrl: intake.source_url,
         objectPath: intake.source_metadata?.object_path,
         mimeType: intake.source_metadata?.mime_type,
       }, store, accessToken);
@@ -39,7 +40,7 @@ export async function processIntake(store, intakeId, session) {
         platform: 'direct',
         source_url: intake.source_url || `keep-on://intakes/${intake.id}`,
         canonical_url: intake.source_url || `keep-on://intakes/${intake.id}`,
-        title: intake.source_metadata?.original_filename || '직접 저장한 정보',
+        title: intake.source_metadata?.original_filename || intake.source_url || '직접 저장한 정보',
         body: sourceText,
         author: '직접 저장',
         published_at: null,
