@@ -195,6 +195,9 @@ function collectPageEvidence() {
     }
   };
   const sourceIdentity = postIdentity(sourceUrl);
+  const sourceThreadsAuthor = platform === 'threads'
+    ? new URL(sourceUrl).pathname.match(/^\/@([^/]+)\/post\//i)?.[1]?.toLowerCase() || ''
+    : '';
   const ogTitle = meta('meta[property="og:title"]');
   let thumbnailUrl = meta('meta[property="og:image"]')
     || meta('meta[property="og:image:secure_url"]')
@@ -223,6 +226,13 @@ function collectPageEvidence() {
       || ogTitle.match(/^(.{2,80}?)\s*(?:\(@[\w.]+\))?\s*(?:on|의)\s*Threads/i)?.[1]?.trim()
       || ''
     : '';
+  // Threads SPA는 새 게시물 이미지가 먼저 바뀌고 이전 게시물의 OG 제목·작성자가
+  // 잠시 남을 수 있다. URL 작성자와 메타 작성자가 다르면 섞인 정보를 저장하지 않는다.
+  const isStaleThreadsAuthor = Boolean(
+    sourceThreadsAuthor
+      && threadsAuthor
+      && !threadsAuthor.replace(/^@/, '').toLowerCase().includes(sourceThreadsAuthor)
+  );
   const instagramContainers = platform === 'instagram'
     ? Array.from(document.querySelectorAll('article, [role="article"]'))
     : [];
@@ -421,7 +431,7 @@ function collectPageEvidence() {
       && metadataCanonicalUrl !== sourceUrl
       && !currentInstagramContainer
   );
-  const hasCaptureMismatch = isRenderedMismatch || isStaleInstagramCapture;
+  const hasCaptureMismatch = isRenderedMismatch || isStaleInstagramCapture || isStaleThreadsAuthor;
   // Threads는 SPA 내부 이동 때 og:url을 이전 게시물 값으로 남겨둘 수 있다.
   // 현재 탭이 실제 게시물 URL이면 주소창 URL을 게시물 식별자의 기준으로 삼는다.
   const canonicalUrl = sourcePost && !samePost ? sourceUrl : metadataCanonicalUrl;

@@ -10,6 +10,7 @@ import { SupabaseAuthService } from './auth.js';
 import { processIntake } from './workflow.js';
 import { GeminiConversationAgent } from './agents/chat-agent.js';
 import { GeminiRecommendationAgent } from './agents/recommendation-agent.js';
+import { enqueueIntake, taskQueueConfigured } from './task-queue.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND_DIST = path.join(ROOT, 'frontend', 'dist');
@@ -148,6 +149,17 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
     }
 
     try {
+      const internalIntakeMatch = url.pathname.match(/^\/v1\/internal\/intakes\/([^/]+)$/);
+      if (request.method === 'POST' && internalIntakeMatch) {
+        if (!process.env.KEEP_TASK_TOKEN || request.headers['x-keep-task-token'] !== process.env.KEEP_TASK_TOKEN) {
+          return sendJson(response, 401, { error: { code: 'TASK_UNAUTHORIZED', message: '내부 작업 인증이 필요합니다.' } });
+        }
+        const task = await readJson(request);
+        if (!task.user_id || !task.access_token) return sendJson(response, 400, { error: { code: 'INVALID_TASK', message: '작업 사용자 정보가 없습니다.' } });
+        await processIntake(keeperStore, internalIntakeMatch[1], { userId: task.user_id, accessToken: task.access_token });
+        const completed = await keeperStore.getIntake(internalIntakeMatch[1], task.user_id, task.access_token);
+        return sendJson(response, 200, { intake_id: internalIntakeMatch[1], status: completed?.status || 'FAILED' });
+      }
       if (request.method === 'GET' && !url.pathname.startsWith('/v1/') && await serveStatic(url.pathname, response)) return;
       if (request.method === 'GET' && url.pathname === '/v1/auth/config') {
         if (!supabase) {
@@ -218,6 +230,10 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
           return;
         }
         const intake = await keeperStore.createIntake(checked.value, session.userId, session.accessToken);
+        if (taskQueueConfigured()) {
+          await enqueueIntake({ intakeId: intake.id, userId: session.userId, accessToken: session.accessToken });
+          return sendJson(response, 202, { intake_id: intake.id, status: 'QUEUED', status_url: `/v1/intakes/${intake.id}` });
+        }
         // Cloud Run은 응답 후 백그라운드 CPU 실행을 보장하지 않는다. Keep 완료를
         // 표시하기 전에 같은 요청 안에서 정리·저장을 끝내야 목록 누락이 없다.
         await processIntake(keeperStore, intake.id, session);
@@ -262,6 +278,10 @@ export function createKeeperServer({ port = DEFAULT_PORT, host = process.env.HOS
             original_filename: metadata.original_filename || 'upload', mime_type: metadata.mime_type,
             byte_size: metadata.byte_size || 1,
           }, session.userId, session.accessToken);
+        }
+        if (taskQueueConfigured()) {
+          await enqueueIntake({ intakeId: intake.id, userId: session.userId, accessToken: session.accessToken });
+          return sendJson(response, 202, { intake_id: intake.id, status: 'QUEUED', status_url: `/v1/intakes/${intake.id}` });
         }
         await processIntake(keeperStore, intake.id, session);
         const completed = await keeperStore.getIntake(intake.id, session.userId, session.accessToken);

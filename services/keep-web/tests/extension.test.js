@@ -40,6 +40,7 @@ test('MV3 확장프로그램이 activeTab 증거 수집과 Intake POST를 선언
   assert.match(popup, /normalizedInstagramAuthor/);
   assert.match(popup, /const threadsPostTitle = platform === 'threads' \? cleanText\(document\.title\) : ''/);
   assert.match(popup, /hasThreadsPostTitle \? threadsPostTitle : domText/);
+  assert.match(popup, /isStaleThreadsAuthor/);
   assert.match(popup, /RENDERED_POST_MISMATCH/);
   assert.match(popup, /\/v1\/intakes/);
   assert.match(popup, /source_type: 'page_evidence'/);
