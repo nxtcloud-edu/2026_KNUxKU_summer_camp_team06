@@ -10,6 +10,7 @@ import {
 import { opportunities } from '@/data';
 import { decisionOf } from '@/lib/decisionView';
 import { useDecisions } from '@/lib/decisionStore';
+import { formatDday } from '@/lib/dday';
 import { matchesKorean } from '@/lib/koreanSearch';
 import { allPlans, parseDeadline, setTaskDue, usePlanOverrides } from '@/lib/planStore';
 
@@ -116,7 +117,7 @@ export function CalendarPage() {
         result.push({
           id: `${DEADLINE_EVENT_PREFIX}${item.id}`,
           title: `${item.title} 마감`,
-          description: item.dDay === null ? item.organization : `${item.organization} · D-${item.dDay}`,
+          description: item.dDay === null ? item.organization : `${item.organization} · ${formatDday(item.dDay)}`,
           startTime: deadline,
           endTime: end,
           color: 'red',

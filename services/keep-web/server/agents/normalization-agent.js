@@ -96,9 +96,9 @@ function normalizeGeminiResult(result, fallback) {
   const category = CATEGORIES.includes(result && result.category) ? result.category : fallback.category;
   const title = compact(result && result.title, 180) || fallback.title;
   const summary = compact(result && result.summary, 500) || fallback.summary;
-  const deadline = typeof (result && result.deadline) === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(result.deadline)
-    ? result.deadline
-    : fallback.deadline;
+  // 마감일은 모델 출력이 아니라 추출된 원문을 정규식으로 구조화한 값만 사용한다.
+  // Python 브릿지 장애 시에도 Gemini가 존재하지 않는 날짜를 만들어 카드에 쓰지 못하게 한다.
+  const deadline = fallback.deadline;
   return {
     ...fallback,
     title,

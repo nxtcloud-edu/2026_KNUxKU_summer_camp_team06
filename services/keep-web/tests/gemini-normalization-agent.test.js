@@ -66,6 +66,33 @@ test('Gemini 오류 시 규칙 기반 정규화 결과로 복구한다', async (
   assert.equal(result.deadline, '2026-08-10');
 });
 
+test('Gemini가 원문과 다른 날짜를 반환해도 정규식으로 확인된 마감일만 저장한다', async () => {
+  const agent = new GeminiNormalizationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({
+                title: 'OpenAI Student Collective 참가자 모집',
+                summary: '대학생 대상 프로그램 참가자를 모집합니다.',
+                category: 'Support',
+                deadline: '2030-01-01',
+                author: 'local',
+              }),
+            }],
+          },
+        }],
+      }),
+    }),
+  });
+
+  const result = await agent.normalize(extracted());
+  assert.equal(result.deadline, '2026-08-10');
+});
+
 test('운영 strict 모드에서는 Gemini 오류를 규칙 기반 결과로 숨기지 않는다', async () => {
   const agent = new GeminiNormalizationAgent({
     apiKey: 'test-key',
