@@ -13,6 +13,14 @@ let accessToken = null;
 let refreshToken = null;
 let expiresAt = 0;
 
+async function clearSession() {
+  accessToken = null;
+  refreshToken = null;
+  expiresAt = 0;
+  await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
+  updateConnectionUi();
+}
+
 function setStatus(message) {
   statusOutput.textContent = message;
 }
@@ -58,9 +66,18 @@ async function loadSettings() {
   refreshToken = stored.refreshToken || null;
   expiresAt = Number(stored.expiresAt || 0);
   if (accessToken && !refreshToken) {
-    accessToken = null;
-    await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
+    await clearSession();
     setStatus('연결 정보를 업데이트하려면 Google 계정을 한 번 다시 연결해 주세요.');
+  }
+  if (accessToken) {
+    try {
+      await ensureSession();
+      const response = await fetch(`${API_BASE}/v1/me`, { headers: { authorization: `Bearer ${accessToken}` } });
+      if (!response.ok) throw new Error('세션을 확인하지 못했습니다.');
+    } catch {
+      await clearSession();
+      setStatus('로그인이 필요합니다. Google 계정을 다시 연결해 주세요.');
+    }
   }
   updateConnectionUi();
 }
@@ -93,11 +110,7 @@ async function ensureSession() {
   try {
     await refreshSession();
   } catch (error) {
-    accessToken = null;
-    refreshToken = null;
-    expiresAt = 0;
-    await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
-    updateConnectionUi();
+    await clearSession();
     throw error;
   }
 }
@@ -224,6 +237,21 @@ function collectPageEvidence() {
     thumbnailUrl = Array.from(imageScope.querySelectorAll('img'))
       .map((image) => image.currentSrc || image.getAttribute('src') || image.getAttribute('data-src') || '')
       .find((url) => /^https:\/\//i.test(url) && !/profile|avatar/i.test(url)) || '';
+  }
+  // Threads의 OG 이미지는 실제 게시물 사진이 아닌 Threads 로고인 경우가 많다.
+  // 현재 게시물 영역의 큰 이미지만 쓰고, 없으면 대표 이미지 없이 저장한다.
+  if (platform === 'threads') {
+    const threadImageScope = document.querySelector('article, [role="article"]') || document.querySelector('main') || document;
+    const threadMedia = Array.from(threadImageScope.querySelectorAll('img'))
+      .map((image) => ({
+        url: image.currentSrc || image.getAttribute('src') || image.getAttribute('data-src') || '',
+        alt: image.getAttribute('alt') || '',
+        area: Math.max(image.naturalWidth || image.width || 0, 1) * Math.max(image.naturalHeight || image.height || 0, 1),
+      }))
+      .filter((image) => /^https:\/\//i.test(image.url) && !/profile|avatar|emoji/i.test(image.alt))
+      .sort((a, b) => b.area - a.area);
+    if (threadMedia[0]?.area > 30_000) thumbnailUrl = threadMedia[0].url;
+    else thumbnailUrl = '';
   }
   const domText = cleanText((document.querySelector('article') || document.querySelector('[role="article"]') || document.querySelector('main') || document.body)?.innerText || '');
   const cleanInstagramCaption = (value) => cleanText(value)
@@ -444,6 +472,10 @@ async function keepCurrentPage() {
       body: JSON.stringify({ source_type: 'page_evidence', page_evidence: pageEvidence })
     });
     const result = await readJsonResponse(response);
+    if (response.status === 401) {
+      await clearSession();
+      throw new Error('로그인이 만료되었습니다. Google 계정을 다시 연결해 주세요.');
+    }
     if (!response.ok) {
       const details = Array.isArray(result.error?.details) && result.error.details.length
         ? ` (${result.error.details.join(', ')})`
@@ -464,11 +496,7 @@ dashboardButton.addEventListener('click', async () => {
 });
 connectButton.addEventListener('click', connectAccount);
 disconnectButton.addEventListener('click', async () => {
-  accessToken = null;
-  refreshToken = null;
-  expiresAt = 0;
-  await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresAt']);
-  updateConnectionUi();
+  await clearSession();
   setStatus('계정 연결을 해제했습니다.');
 });
 Promise.all([loadSettings(), loadPagePreview()]).catch((error) => setStatus(`초기화 실패\n${error.message}`));

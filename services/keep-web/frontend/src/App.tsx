@@ -164,12 +164,10 @@ function DashboardRail({ title, subtitle, items }: { title: string; subtitle: st
 }
 
 function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: number }) {
-  const nextTask = item.tasks.find((task) => !task.done)?.title || '모든 단계 완료';
   const liked = useLikedOpportunities().includes(item.id);
   return (
     <Link to={`/saved/${item.id}`} className={`dashboard-opportunity-card accent-${item.accent}`}>
       <button className={`like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={(event) => { event.preventDefault(); toggleLikedOpportunity(item.id); }}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button>
-      <span className="opportunity-rank" aria-hidden="true">{rank}</span>
       <div className={`opportunity-card-art opportunity-preview-${rank}`} aria-hidden="true">
         {item.thumbnailUrl && item.thumbnailKind === 'pdf'
           ? <iframe src={`${item.thumbnailUrl}#page=1&zoom=page-width`} title="PDF 첫 페이지 미리보기" tabIndex={-1} />
@@ -179,7 +177,6 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
         <div><CategoryTag category={item.category} />{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
         <h4>{item.title}</h4>
         {item.organization && <p>{item.organization}</p>}
-        <small>다음: {nextTask}</small>
         <PlatformLogo platform={item.savedFrom} thumbnailKind={item.thumbnailKind} />
       </div>
     </Link>
