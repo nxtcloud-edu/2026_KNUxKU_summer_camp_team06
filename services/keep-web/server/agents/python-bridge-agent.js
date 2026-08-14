@@ -73,7 +73,9 @@ export class PythonBridgeNormalizationAgent extends NormalizationAgent {
       const result = await this.spawnImpl(extracted, { timeoutMs: this.timeoutMs });
       if (result && result.error) return this.fallbackAgent.normalize(extracted);
       if (!result || typeof result !== 'object') return this.fallbackAgent.normalize(extracted);
-      const structured = { ...fallback, ...result };
+      // opportunities.normalization_method DB 제약은 gemini/rules 두 값만 허용한다.
+      // Python 정규식 파이프라인은 결정론적 규칙 기반 결과이므로 rules로 저장한다.
+      const structured = { ...fallback, ...result, normalization_method: 'rules' };
       try {
         const presentation = await this.presentationAgent.normalize(extracted);
         return {
@@ -84,7 +86,7 @@ export class PythonBridgeNormalizationAgent extends NormalizationAgent {
           category: structured.category || presentation.category,
           // 마감일과 조건은 Gemini 출력으로 덮어쓰지 않는다.
           deadline: structured.deadline,
-          normalization_method: `${structured.normalization_method}+gemini_presentation`,
+          normalization_method: 'rules',
         };
       } catch {
         return structured;
