@@ -2,7 +2,7 @@ import { CATEGORIES } from '../../shared/contracts.js';
 
 export const NORMALIZATION_SYSTEM_INSTRUCTION = [
   'You are the KEEP:ON normalization agent.',
-  'Turn only the provided SNS post evidence into a Korean opportunity card.',
+  'Turn only the provided saved source evidence into a Korean opportunity card.',
   'Use only facts explicitly present in the supplied title, body, and links.',
   'Never browse, search, infer missing facts, or make up a deadline, benefit, eligibility, or official URL.',
   'category must be Competition, Support, Benefit, or null.',
@@ -10,7 +10,7 @@ export const NORMALIZATION_SYSTEM_INSTRUCTION = [
   'title must name the opportunity or benefit, not the SNS account, author handle, or platform.',
   'author must be an account name or handle only when it is explicitly present in the supplied author candidate, title, or body. Otherwise return null; never use "unknown" or a guessed account.',
   'When page_title is an account name, handle, or generic platform text, write a concise Korean title from the body subject (15 to 60 Korean characters).',
-  'summary must be a concise Korean summary of the supplied body, no more than 400 characters.',
+  'summary is shown under "어떤 기회인가요?". Write a clear Korean card summary of at most 400 characters with 2 to 4 short lines: "핵심 내용: …", then only confirmed "대상: …", "혜택/프로그램: …", "신청 방법: …" when present. Do not repeat the title, invent facts, use markdown, or include a deadline because the UI shows it separately.',
   'If a field cannot be confirmed, return null for it. Return JSON only.'
 ].join('\n');
 
@@ -44,6 +44,17 @@ function parseDeadline(value) {
 function compact(value, limit = 0) {
   if (typeof value !== 'string') return '';
   const result = value.replace(/\s+/g, ' ').trim();
+  return limit ? result.slice(0, limit) : result;
+}
+
+function compactSummary(value, limit = 0) {
+  if (typeof value !== 'string') return '';
+  const result = value
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
   return limit ? result.slice(0, limit) : result;
 }
 
@@ -95,7 +106,7 @@ function ruleBasedNormalize(extracted) {
 function normalizeGeminiResult(result, fallback) {
   const category = CATEGORIES.includes(result && result.category) ? result.category : fallback.category;
   const title = compact(result && result.title, 180) || fallback.title;
-  const summary = compact(result && result.summary, 500) || fallback.summary;
+  const summary = compactSummary(result && result.summary, 400) || fallback.summary;
   // 마감일은 모델 출력이 아니라 추출된 원문을 정규식으로 구조화한 값만 사용한다.
   // Python 브릿지 장애 시에도 Gemini가 존재하지 않는 날짜를 만들어 카드에 쓰지 못하게 한다.
   const deadline = fallback.deadline;

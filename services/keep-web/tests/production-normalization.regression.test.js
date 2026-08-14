@@ -18,6 +18,13 @@ test('Python 서브프로세스 자체가 실패하면 Gemini 정규화로 폴�
 });
 
 test('Python 서브프로세스가 정상 동작하면 결정론적 결과를 그대로 사용한다', async () => {
+  const presentationAgent = {
+    normalize: async () => ({
+      title: '교환학생 파견 모집',
+      summary: '핵심 내용: 해외 대학 교환학생을 모집합니다.\n대상: 재학생',
+      category: 'Support',
+    }),
+  };
   const agent = new PythonBridgeNormalizationAgent({
     spawnImpl: async () => ({
       title: '2027-1학기 파견 교환학생',
@@ -25,10 +32,13 @@ test('Python 서브프로세스가 정상 동작하면 결정론적 결과를 �
       normalization_method: 'python_structured',
       status: 'ok',
     }),
+    presentationAgent,
   });
   const result = await agent.normalize({ title: '2027-1학기 파견 교환학생', body: '신청기간 2026.7.8 ~ 7.13' });
   assert.equal(result.deadline, '2026-07-13');
-  assert.equal(result.normalization_method, 'python_structured');
+  assert.equal(result.title, '교환학생 파견 모집');
+  assert.equal(result.summary, '핵심 내용: 해외 대학 교환학생을 모집합니다.\n대상: 재학생');
+  assert.equal(result.normalization_method, 'python_structured+gemini_presentation');
 });
 
 test('마감과 자격 조건이 없는 저장 글은 일반 정보로 분류한다', () => {

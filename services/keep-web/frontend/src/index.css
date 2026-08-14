@@ -1106,6 +1106,7 @@ img { max-width: 100%; display: block; }
 .content-section + .content-section { margin-top: 40px; }
 .content-section h3 { margin: 0 0 14px; color: var(--ink); font-size: var(--text-2xl); font-weight: 750; letter-spacing: -.03em; }
 .content-section > p { margin: 0; color: var(--ink-2); font-size: var(--text-md); line-height: var(--leading-relaxed); }
+.content-section > p.opportunity-summary { white-space: pre-line; }
 .content-section > p.section-note { margin: -6px 0 16px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-3); }
 .ask-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .ask-chip {

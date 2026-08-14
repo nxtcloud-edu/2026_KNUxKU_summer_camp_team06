@@ -82,8 +82,7 @@ function HomePage({ loading }: { loading: boolean }) {
         <p className="section-label">
           {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
         </p>
-        <h2>저장한 정보를<br /><em>정리했어요</em></h2>
-        <p>저장한 정보를 제목, 내용, 기간과 링크로 정리해 두었어요.</p>
+        <h2>저장한 정보를 <em>정리했어요</em></h2>
       </header>
 
       {loading ? (
@@ -270,9 +269,8 @@ function SavedPage() {
   return (
     <div className="page">
       <section className="page-intro">
-        <p className="section-label">MY SAVES</p>
-        <h2>저장한 정보가 기회가 되는 곳</h2>
-        <p>정보를 기회로 KEEP:ON</p>
+        <p className="section-label">저장한 정보가 기회가 되는 곳</p>
+        <h2>정보를 기회로 KEEP:ON</h2>
       </section>
       <label className="upload-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files); }}>
         <input type="file" multiple accept="image/*,.pdf,.txt" onChange={(event) => event.target.files && void addFiles(event.target.files)} />
@@ -410,7 +408,7 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
 
       <div className="detail-columns">
         <div className="detail-main">
-          <section className="content-section"><h3>어떤 기회인가요?</h3><p>{item.summary}</p></section>
+          <section className="content-section"><h3>어떤 기회인가요?</h3><p className="opportunity-summary">{item.summary}</p></section>
           <section className="content-section">
             <h3>이거 물어보기</h3>
             <p className="section-note">저장한 원문과 일정만 근거로 답해요.</p>
@@ -442,6 +440,7 @@ function DecisionCard({ item }: { item: Opportunity }) {
   const snoozeLabel = record.snoozeUntil
     ? new Date(record.snoozeUntil).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
     : snoozeDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  const canOpenOriginal = /^https?:\/\//i.test(item.sourceUrl) && item.thumbnailKind !== 'pdf' && item.thumbnailKind !== 'image';
 
   const copy: Record<DecisionState, { title: string; body: string }> = {
     none: {
@@ -511,9 +510,11 @@ function DecisionCard({ item }: { item: Opportunity }) {
         </button>
       </div>
 
-      <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="secondary-action">
-        원문 확인 <ExternalLink size={15} />
-      </a>
+      {canOpenOriginal && (
+        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="secondary-action">
+          원문 확인 <ExternalLink size={15} />
+        </a>
+      )}
     </aside>
   );
 }

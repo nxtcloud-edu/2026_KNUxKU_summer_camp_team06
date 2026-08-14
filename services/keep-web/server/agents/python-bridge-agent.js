@@ -56,12 +56,15 @@ function defaultSpawn(payload, { timeoutMs }) {
 }
 
 export class PythonBridgeNormalizationAgent extends NormalizationAgent {
-  constructor({ spawnImpl = defaultSpawn, timeoutMs = 15000, fallbackAgent, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ spawnImpl = defaultSpawn, timeoutMs = 15000, fallbackAgent, presentationAgent, fetchImpl = globalThis.fetch } = {}) {
     super();
     this.spawnImpl = spawnImpl;
     this.timeoutMs = timeoutMs;
     // Python 서브프로세스 자체가 실패했을 때만 쓰는 최후 안전망 (상시 경로 아님).
     this.fallbackAgent = fallbackAgent || new GeminiNormalizationAgent({ fetchImpl, timeoutMs });
+    // 구조화된 날짜·조건은 Python이 책임지고, Gemini는 사람이 읽는 제목·요약만 다듬는다.
+    // 이 단계가 실패해도 저장을 막지 않도록 strict 모드는 사용하지 않는다.
+    this.presentationAgent = presentationAgent || new GeminiNormalizationAgent({ fetchImpl, timeoutMs, requireGemini: false });
   }
 
   async normalize(extracted) {
@@ -70,8 +73,22 @@ export class PythonBridgeNormalizationAgent extends NormalizationAgent {
       const result = await this.spawnImpl(extracted, { timeoutMs: this.timeoutMs });
       if (result && result.error) return this.fallbackAgent.normalize(extracted);
       if (!result || typeof result !== 'object') return this.fallbackAgent.normalize(extracted);
-      // 브릿지 필드를 우선하되, 혹시 비어있는 필드는 fallback으로 채워 안전망을 유지한다.
-      return { ...fallback, ...result };
+      const structured = { ...fallback, ...result };
+      try {
+        const presentation = await this.presentationAgent.normalize(extracted);
+        return {
+          ...structured,
+          title: presentation.title || structured.title,
+          summary: presentation.summary || structured.summary,
+          author: structured.author || presentation.author,
+          category: structured.category || presentation.category,
+          // 마감일과 조건은 Gemini 출력으로 덮어쓰지 않는다.
+          deadline: structured.deadline,
+          normalization_method: `${structured.normalization_method}+gemini_presentation`,
+        };
+      } catch {
+        return structured;
+      }
     } catch {
       return this.fallbackAgent.normalize(extracted);
     }

@@ -31,7 +31,7 @@ test('Gemini Agent는 구조화 JSON을 카드 필드로 정규화한다', async
               parts: [{
                 text: JSON.stringify({
                   title: 'OpenAI Student Collective 참가자 모집',
-                  summary: '대학생 대상 OpenAI Student Collective 프로그램 참가자를 모집합니다.',
+                  summary: '핵심 내용: OpenAI Student Collective 참가자를 모집합니다.\n대상: 대학생',
                   category: 'Support',
                   deadline: '2026-08-10'
                 })
@@ -48,10 +48,12 @@ test('Gemini Agent는 구조화 JSON을 카드 필드로 정규화한다', async
   assert.equal(result.title, 'OpenAI Student Collective 참가자 모집');
   assert.equal(result.category, 'Support');
   assert.equal(result.deadline, '2026-08-10');
+  assert.equal(result.summary, '핵심 내용: OpenAI Student Collective 참가자를 모집합니다.\n대상: 대학생');
   assert.equal(result.body, extracted().body);
   assert.match(request.systemInstruction.parts[0].text, /Never browse/);
   assert.equal(request.generationConfig.responseMimeType, 'application/json');
   assert.equal(NORMALIZATION_SYSTEM_INSTRUCTION.includes('published_at value is never a deadline'), true);
+  assert.equal(NORMALIZATION_SYSTEM_INSTRUCTION.includes('어떤 기회인가요?'), true);
 });
 
 test('Gemini 오류 시 규칙 기반 정규화 결과로 복구한다', async () => {
