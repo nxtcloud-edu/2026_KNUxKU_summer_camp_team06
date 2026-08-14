@@ -3,14 +3,22 @@ import { CapturedExamplesMarquee } from '@/components/captured-marquee'
 import { Card, CardContent } from '@/components/ui/card'
 import { demoConditions, demoRawText, demoTasks } from '@/data/how-it-works'
 
-// TODO: 실제 KEEP:ON 자료(로고, 스크린샷, 실제 사용자 후기 등)가 오면 세부 톤/비주얼을
-// 다듬는다. 카피와 예시 데이터는 docs/landingpage.md + 실제 파이프라인 실행 결과 기반.
+// TODO: 실제 사용자 후기/스크린샷이 오면 세부 톤을 더 다듬는다. 카피와 예시 데이터는
+// docs/landingpage.md + 실제 파이프라인 실행 결과 기반. 브랜드 자산은 docs/brand/ 참고.
+
+function Wordmark({ className = 'text-lg' }: { className?: string }) {
+  return (
+    <span className={`logo-wordmark ${className}`}>
+      KEEP<span className="logo-colon">:</span>ON
+    </span>
+  )
+}
 
 function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
+      <h2 className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">{title}</h2>
       {description && <p className="mt-3 text-muted-foreground">{description}</p>}
     </div>
   )
@@ -21,7 +29,10 @@ function App() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold tracking-tight">KEEP:ON</span>
+          <div className="flex items-center gap-2">
+            <img src="/brand/logo-icon.svg" alt="" className="size-6" />
+            <Wordmark />
+          </div>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#examples" className="hover:text-foreground">
               저장 예시
@@ -36,11 +47,11 @@ function App() {
       <main>
         {/* Hero */}
         <section className="mx-auto max-w-5xl px-6 py-24 text-center">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+          <h1 className="font-display text-4xl leading-tight tracking-tight sm:text-5xl">
             저장은 했는데 실행은 안 하는 청년을 위해
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
-            저장한 순간부터 마감까지 끌고 가는 AI 에이전트, KEEP:ON
+            저장한 순간부터 마감까지 끌고 가는 AI 에이전트, <Wordmark className="text-lg" />
           </p>
           <div className="mt-8 flex justify-center gap-3">
             <a
@@ -98,7 +109,7 @@ function App() {
                 <ul className="space-y-2">
                   {demoConditions.map((c, i) => (
                     <li key={i} className="rounded-md border border-border bg-muted/50 p-2.5 text-xs">
-                      <span className="mr-2 rounded bg-secondary px-1.5 py-0.5 font-medium text-secondary-foreground">
+                      <span className="mr-2 rounded bg-secondary px-1.5 py-0.5 font-mono font-medium text-secondary-foreground">
                         {c.type}
                       </span>
                       {c.quote}
@@ -122,7 +133,7 @@ function App() {
                     <li key={i} className="flex items-start gap-2 text-xs">
                       <ArrowRight className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                       <span className="flex-1">{t.title}</span>
-                      <span className="shrink-0 text-muted-foreground">{t.due}</span>
+                      <span className="shrink-0 font-mono font-semibold text-accent-text">{t.due}</span>
                     </li>
                   ))}
                 </ul>
@@ -135,7 +146,7 @@ function App() {
         {/* CTA */}
         <section className="border-t border-border">
           <div className="mx-auto max-w-3xl px-6 py-20 text-center">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h2 className="font-display text-2xl tracking-tight sm:text-3xl">
               다음에 저장할 땐, 저장으로 끝내지 마세요
             </h2>
             <p className="mt-3 text-muted-foreground">Chrome 확장으로 지금 바로 시작하세요.</p>

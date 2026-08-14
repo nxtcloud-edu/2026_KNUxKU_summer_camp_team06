@@ -28,14 +28,16 @@ const glyphColor: Record<Platform, string> = {
 export function PlatformIcon({ platform, className }: { platform: Platform; className?: string }) {
   const icon = iconData[platform]
   return (
+    // 실제 앱 아이콘처럼 둥근 사각형(squircle) — 원형 프로필 배지가 아니라 "이 앱에서
+    // 왔다"는 출처 표시이므로 실제 앱 아이콘 형태에 맞춘다.
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full shadow-sm ring-1 ring-black/5',
+        'inline-flex shrink-0 items-center justify-center rounded-[26%] shadow-sm ring-1 ring-black/5',
         bgClass[platform],
         className,
       )}
     >
-      <svg viewBox="0 0 24 24" className="h-[58%] w-[58%]" fill={glyphColor[platform]}>
+      <svg viewBox="0 0 24 24" className="h-[64%] w-[64%]" fill={glyphColor[platform]}>
         <path d={icon.path} />
       </svg>
     </span>

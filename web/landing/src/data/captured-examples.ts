@@ -26,6 +26,14 @@ export const capturedExamples: CapturedExample[] = [
     cover: 'code',
   },
   {
+    platform: 'kakaotalk',
+    handle: '정보대 단톡방',
+    snippet:
+      '[2026 Summer Agentic AI 심화 몰입 캠프] 대상: 파이썬 및 Agentic AI 기초지식을 갖춘 고려대 정보대학 학부생 · 신청기한 ~7/17(금)...',
+    category: 'opportunity',
+    keepOnNote: '전공·학적 조건과 신청기한을 뽑아서 지원 여부를 바로 판단하게 해줘요',
+  },
+  {
     platform: 'instagram',
     handle: '@housearchive_kr',
     snippet:
@@ -60,7 +68,7 @@ export const capturedExamples: CapturedExample[] = [
   },
   {
     platform: 'threads',
-    handle: '@choi.openai',
+    handle: '@campus.ai',
     snippet: '학교 메일 인증만 하면 Cursor Pro 12개월 무료! 대학생이라면 꼭 챙겨야 할 혜택...',
     category: 'opportunity',
     keepOnNote: '‘학생 인증’ 조건을 뽑아서 자격 확인 후 신청을 도와줘요',
@@ -76,7 +84,7 @@ export const capturedExamples: CapturedExample[] = [
   },
   {
     platform: 'threads',
-    handle: '@choi.openai',
+    handle: '@ai.dispatch',
     snippet:
       'Higgsfield 플러그인이 ChatGPT 앱에 정식 출시... API 키도 탭 전환도 없이 채팅으로 바로 결과가 나옵니다...',
     category: 'general_info',

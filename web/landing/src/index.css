@@ -1,49 +1,62 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* KEEP:ON 브랜드 폰트 (self-host, docs/brand/style-guide.md 권장사항) */
+@import "@fontsource/archivo-black";
+@import "@fontsource-variable/manrope";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
 @custom-variant dark (&:is(.dark *));
 
+/* docs/brand/style-guide.md 컬러 토큰 그대로 매핑 */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #f4f5fa; /* paper */
+  --foreground: #1c1b2e; /* ink */
+  --card: #ffffff; /* surface */
+  --card-foreground: #1c1b2e;
+  --popover: #ffffff;
+  --popover-foreground: #1c1b2e;
+  --primary: #2a4a9b; /* keep (brand blue) */
+  --primary-foreground: #ffffff;
+  --secondary: #eceef6;
+  --secondary-foreground: #1c1b2e;
+  --muted: #eceef6;
+  --muted-foreground: #55577a; /* ink-soft */
+  --accent: #f5a623; /* on (brand amber) */
+  --accent-foreground: #1c1b2e;
+  --accent-text: #b8720a; /* on-text: 앰버를 텍스트로 쓸 때 */
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #d8dce8; /* line */
+  --input: #d8dce8;
+  --ring: #2a4a9b;
+
+  --font-display: "Archivo Black", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-sans: "Manrope Variable", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Apple SD Gothic Neo", monospace;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #14152a; /* paper */
+  --foreground: #f1efe6; /* ink */
+  --card: #1d1f3a; /* surface */
+  --card-foreground: #f1efe6;
+  --popover: #1d1f3a;
+  --popover-foreground: #f1efe6;
+  --primary: #7b97de; /* keep */
+  --primary-foreground: #14152a;
+  --secondary: #262842;
+  --secondary-foreground: #f1efe6;
+  --muted: #262842;
+  --muted-foreground: #b7b9d9; /* ink-soft */
+  --accent: #ffc369; /* on */
+  --accent-foreground: #14152a;
+  --accent-text: #ffc369;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #33355a; /* line */
+  --input: #33355a;
+  --ring: #7b97de;
 }
 
 @theme inline {
@@ -61,6 +74,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--accent-text);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -69,6 +83,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
@@ -98,5 +116,16 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
+}
+
+/* docs/brand/style-guide.md 워드마크 스펙 그대로 */
+.logo-wordmark {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+  color: var(--foreground);
+}
+.logo-colon {
+  color: var(--accent-text);
 }
