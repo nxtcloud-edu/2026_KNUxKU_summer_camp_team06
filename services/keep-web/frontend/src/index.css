@@ -222,6 +222,13 @@ img { max-width: 100%; display: block; }
 .top-brand img { width: 132px; height: auto; }
 .top-brand:hover { transform: translateY(-1px); }
 
+.landing-marquee-wrap { overflow: hidden; }
+.landing-marquee-tilt { display: grid; gap: 16px; min-width: max-content; transform: rotateX(10deg) rotateZ(-2deg); }
+.landing-marquee { display: flex; gap: 16px; width: max-content; padding: 8px; animation: landing-marquee 38s linear infinite; }
+.landing-marquee.is-reverse { animation-direction: reverse; }
+.landing-marquee:hover { animation-play-state: paused; }
+@keyframes landing-marquee { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
+
 .top-nav-links {
   position: absolute;
   left: 50%;

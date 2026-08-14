@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CalendarClock,
   CalendarDays,
   Check,
   Clock3,
@@ -15,6 +16,7 @@ import {
   MessageCircleQuestion,
   MoreHorizontal,
   Pin,
+  Quote,
   Search,
   Send,
   Settings2,
@@ -32,6 +34,9 @@ import { askConversation, createSourceIntake, getIntake, getMyOpportunities, get
 import { useAuth } from './lib/auth';
 import { OrderTracking } from './components/ui/order-tracking';
 import { AgentProgressCard } from './components/ui/agent-progress-card';
+import { Card, CardContent } from './components/ui/card';
+import { CapturedExamplesMarquee } from './components/landing/captured-marquee';
+import { demoConditions, demoRawText, demoTasks } from './data/landing';
 import {
   allPlans,
   clearPlan,
@@ -917,15 +922,51 @@ function LandingPage({ onSignIn }: { onSignIn: () => Promise<void> }) {
     try { await onSignIn(); } catch { setLoading(false); }
   };
   return (
-    <main className="page home-page landing-page">
-      <p className="section-label">KEEP:ON</p>
-      <h1>저장만 했던 정보가<br /><em>내 기회</em>가 되는 곳</h1>
-      <p>Instagram과 Threads에서 Keep한 정보만 AI가 제목, 내용, 기간, 링크로 정리해드려요.</p>
-      <button type="button" className="primary-action" onClick={() => void start()} disabled={loading}>
-        {loading ? '로그인 화면을 여는 중…' : 'Google로 시작하기'} <ArrowRight size={17} />
-      </button>
-    </main>
+    <div className="tw-root landing-page min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <img className="h-7 w-auto" src="/brand/logo-lockup-horizontal.svg" alt="KEEP:ON" />
+          <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+            <a href="#examples" className="hover:text-foreground">저장 예시</a>
+            <a href="#how" className="hover:text-foreground">어떻게 동작하나요</a>
+          </nav>
+        </div>
+      </header>
+      <main>
+        <section className="mx-auto max-w-5xl px-6 py-24 text-center">
+          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">저장은 했는데 실행은 안 하는 청년을 위해</h1>
+          <p className="mt-4 text-lg text-muted-foreground">저장한 순간부터 마감까지 끌고 가는 AI 에이전트, KEEP:ON</p>
+          <div className="mt-8 flex justify-center gap-3">
+            <button type="button" onClick={() => void start()} disabled={loading} className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+              {loading ? '로그인 화면을 여는 중…' : '시작하기'}
+            </button>
+            <a href="#examples" className="rounded-md border border-border px-5 py-2.5 text-sm font-medium">저장 예시 보기</a>
+          </div>
+        </section>
+
+        <section id="examples" className="pb-24">
+          <LandingSectionHeading eyebrow="Save from anywhere" title="이런 거 저장해두고 다시 안 보시죠?" description="공모전, 지원사업, 서포터즈부터 정보성 게시물, 마감 있는 이벤트까지 — 어디서 저장했든 KEEP:ON은 저장한 순간 무엇을 해야 하는지 구분합니다." />
+          <div className="mt-10"><CapturedExamplesMarquee /></div>
+        </section>
+
+        <section id="how" className="mx-auto max-w-5xl px-6 pb-24">
+          <LandingSectionHeading eyebrow="How KEEP:ON works" title="저장 하나가 실행 계획이 되기까지" description="실제 공고 하나로 KEEP:ON 파이프라인을 그대로 돌린 결과입니다." />
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            <Card><CardContent className="space-y-3 p-6"><div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Quote className="size-4" />1. 저장한 원문</div><p className="whitespace-pre-line text-sm text-foreground/90">{demoRawText}</p></CardContent></Card>
+            <Card><CardContent className="space-y-3 p-6"><div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><CheckCircle2 className="size-4" />2. KEEP:ON이 뽑아낸 공고 정보</div><ul className="space-y-2">{demoConditions.map((condition) => <li key={condition.quote} className="rounded-md border border-border bg-muted/50 p-2.5 text-xs"><span className="mr-2 rounded bg-secondary px-1.5 py-0.5 font-medium text-secondary-foreground">{condition.type}</span>{condition.quote}</li>)}</ul><p className="text-xs text-muted-foreground">원문에 없는 내용은 만들지 않고, 근거가 되는 원문만 사용합니다.</p></CardContent></Card>
+            <Card><CardContent className="space-y-3 p-6"><div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><CalendarClock className="size-4" />3. 나를 위한 실행 계획</div><ul className="space-y-2">{demoTasks.map((task) => <li key={task.title} className="flex items-start gap-2 text-xs"><ArrowRight className="mt-0.5 size-3 shrink-0 text-muted-foreground" /><span className="flex-1">{task.title}</span><span className="shrink-0 text-muted-foreground">{task.due}</span></li>)}</ul><p className="text-xs text-muted-foreground">마감일이 있으면 역산해 계획을 제안하고, 사용자가 선택하면 캘린더에 반영합니다.</p></CardContent></Card>
+          </div>
+        </section>
+
+        <section className="border-t border-border"><div className="mx-auto max-w-3xl px-6 py-20 text-center"><h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">다음에 저장할 땐, 저장으로 끝내지 마세요</h2><p className="mt-3 text-muted-foreground">Chrome 확장프로그램으로 지금 바로 시작하세요.</p><button type="button" onClick={() => void start()} disabled={loading} className="mt-8 inline-block rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground disabled:opacity-60">{loading ? '로그인 화면을 여는 중…' : 'KEEP:ON 시작하기'}</button></div></section>
+      </main>
+      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">KEEP:ON · 2026 강원대x고려대 Summer Agentic AI 심화 몰입 캠프</footer>
+    </div>
   );
+}
+
+function LandingSectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
+  return <div className="mx-auto max-w-2xl text-center"><p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{eyebrow}</p><h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>{description && <p className="mt-3 text-muted-foreground">{description}</p>}</div>;
 }
 
 function App() {
