@@ -1,4 +1,5 @@
 import { opportunities, type Opportunity } from '@/data';
+import { formatDday } from '@/lib/dday';
 import { formatPlanDate, planFor, type PlanTask } from '@/lib/planStore';
 
 /** 챗 시작 화면의 추천 질문 3개 (맥락 없음) */
@@ -21,7 +22,7 @@ export interface AnswerContext {
   planOverrides?: Parameters<typeof planFor>[1];
 }
 
-const dDayLabel = (item: Opportunity) => item.dDay === null ? '마감 정보가 없어요' : `D-${item.dDay} (마감 ${item.deadline})`;
+const dDayLabel = (item: Opportunity) => item.dDay === null ? '마감 정보가 없어요' : `${formatDday(item.dDay)} (마감 ${item.deadline})`;
 
 function conditionAnswer(item: Opportunity) {
   const lines = item.eligibility.map((condition) => `· ${condition}`).join('\n');

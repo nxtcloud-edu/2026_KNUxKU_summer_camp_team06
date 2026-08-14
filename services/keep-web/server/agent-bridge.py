@@ -16,6 +16,7 @@ from src.execution.store import ExecutionStore
 from src.decision_engine import evaluate_opportunity
 from src.c_integration import execution_decision_for_selected
 from src.recommendation_service import ProfileSubmission, RecommendationService
+from src.bridge_server import build_normalize_response
 
 
 def opportunity_record(row: dict) -> dict:
@@ -76,8 +77,14 @@ def profile_for_execution(user_id: str, payload: dict) -> UserProfile:
 
 
 def run(request: dict) -> dict:
-    agent_service = service(request)
     command = request["command"]
+    if command == "normalize":
+        # extraction/normalization은 B의 결정론적 정규식 파이프라인(src/bridge_server.py)을
+        # 그대로 서브프로세스 경로로 태운다 — 별도 상태(opportunities/normalizations)가
+        # 필요 없어서 다른 커맨드보다 앞에서 처리한다.
+        return build_normalize_response(request.get("payload") or request)
+
+    agent_service = service(request)
     if command == "dashboard":
         items = agent_service.dashboard(
             recent_ids=request.get("recent_ids"),

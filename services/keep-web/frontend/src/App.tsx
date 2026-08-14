@@ -32,6 +32,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { opportunities, setOpportunities, type Opportunity } from './data';
 import { askConversation, createSourceIntake, getIntake, getMyOpportunities, getRecommendations, startExecution, type RecommendationFeed } from './agentApi';
 import { useAuth } from './lib/auth';
+import { formatDday } from './lib/dday';
 import { OrderTracking } from './components/ui/order-tracking';
 import { AgentProgressCard } from './components/ui/agent-progress-card';
 import { Card, CardContent } from './components/ui/card';
@@ -174,7 +175,7 @@ function DashboardOpportunityCard({ item, rank }: { item: Opportunity; rank: num
           : item.thumbnailUrl ? <img src={item.thumbnailUrl} alt="" /> : <><span /><i /><b /><em /></>}
       </div>
       <div className="opportunity-card-copy">
-        <div><CategoryTag category={item.category} />{item.dDay !== null && <strong>D-{item.dDay}</strong>}</div>
+        <div><CategoryTag category={item.category} />{item.dDay !== null && <strong>{formatDday(item.dDay)}</strong>}</div>
         <h4>{item.title}</h4>
         {item.organization && <p>{item.organization}</p>}
         <PlatformLogo platform={item.savedFrom} thumbnailKind={item.thumbnailKind} />
@@ -377,7 +378,7 @@ function OpportunityRow({ item, decision }: { item: Opportunity; decision: Decis
         {item.organization && <p>{item.organization}</p>}
       </div>
       <div className="row-reason"><span>KEEP:ON 한줄 요약</span><p>{item.reason}</p></div>
-      <div className="row-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.deadline}</span></div>
+      <div className="row-deadline">{item.dDay !== null && <strong>{formatDday(item.dDay)}</strong>}<span>{item.deadline}</span></div>
       <ArrowRight className="row-arrow" size={19} />
     </Link>
   );
@@ -399,7 +400,7 @@ function OpportunityDetail({ item }: { item: Opportunity }) {
         <div className="detail-top"><CategoryTag category={item.category} /><div><button className={`like-button detail-like-button ${liked ? 'is-liked' : ''}`} type="button" aria-label={`${item.title} 좋아요`} onClick={() => toggleLikedOpportunity(item.id)}><Heart size={17} fill={liked ? 'currentColor' : 'none'} /></button><button type="button" aria-label="더 보기"><MoreHorizontal size={20} /></button></div></div>
         {item.organization && <p className="organization">{item.organization}</p>}
         <h2>{item.title}</h2>
-        <div className="detail-deadline">{item.dDay !== null && <strong>D-{item.dDay}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
+        <div className="detail-deadline">{item.dDay !== null && <strong>{formatDday(item.dDay)}</strong>}<span>{item.dDay === null ? '마감 정보 없음' : `마감 ${item.deadline}`}</span></div>
       </section>
 
       <section className="reason-panel">
@@ -586,7 +587,7 @@ function PlanPage() {
               <Link to={`/plan/${item.id}`} className="plan-row-link">
               <span className="plan-number">{String(index + 1).padStart(2, '0')}</span>
               <div className="plan-copy">
-                <span>{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
+                <span>{item.category}{item.dDay !== null && ` · ${formatDday(item.dDay)}`}</span>
                 <h3>{item.title}</h3>
                 <p>{next ? `다음: ${next.title} · ${formatPlanDate(next.dueAt)}` : '모든 단계 완료'}</p>
               </div>
@@ -637,7 +638,7 @@ function PlanDetail({ item }: { item: Opportunity }) {
       <Link to="/plan" className="back-link"><ArrowLeft size={17} />계획</Link>
       <div className="plan-detail-head">
         <div>
-          <span className="section-label">{item.category}{item.dDay !== null && ` · D-${item.dDay}`}</span>
+          <span className="section-label">{item.category}{item.dDay !== null && ` · ${formatDday(item.dDay)}`}</span>
           <h2>{item.title}</h2>
         </div>
         <div className={`progress-ring accent-${item.accent}`} style={{ '--progress': `${progress * 360}deg` } as React.CSSProperties}>
@@ -764,7 +765,7 @@ function ChatPage() {
             <div>
               <span>이 기회에 대해 이야기 중</span>
               <Link to={`/saved/${item.id}`}>{item.title}</Link>
-              <small>{item.organization}{item.dDay !== null && ` · D-${item.dDay}`}</small>
+              <small>{item.organization}{item.dDay !== null && ` · ${formatDday(item.dDay)}`}</small>
             </div>
             <button type="button" onClick={clearContext} aria-label="맥락 지우기"><X size={16} /></button>
           </div>

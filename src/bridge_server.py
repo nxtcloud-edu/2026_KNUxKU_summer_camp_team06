@@ -111,22 +111,24 @@ def _failed_response(payload: dict, body_text: str, reason: str) -> dict:
     }
 
 
-@app.post("/normalize")
-def normalize_endpoint():
-    payload = request.get_json(force=True) or {}
+def build_normalize_response(payload: dict) -> dict:
+    """정규화 핵심 로직. Flask 라우트와 agent-bridge.py의 `normalize` 커맨드가
+    둘 다 이 함수 하나를 호출한다 — 로직이 두 곳에 따로 구현되어 갈라지지 않게
+    하기 위함 (2026-08-14, HTTP 브릿지가 배포 환경에서 죽어있던 문제를 subprocess
+    방식으로 통일하면서 분리)."""
     body_text = payload.get("body_text") or payload.get("body") or ""
 
     context = extract_from_text(body_text) if body_text.strip() else None
     if context is None or context.status.value == "failed":
         reason = context.error_reason if context else "body_text가 비어있음"
-        return jsonify(_failed_response(payload, body_text, reason)), 200
+        return _failed_response(payload, body_text, reason)
 
     intake_id = payload.get("intake_id") or payload.get("canonical_url") or "unknown"
     result = normalize(intake_id, context.raw_text)
     conditions = [c.model_dump(mode="json") for c in result.conditions]
     content_category = result.content_category.value if result.content_category else None
 
-    return jsonify({
+    return {
         "canonical_url": payload.get("canonical_url"),
         "source_url": payload.get("source_url"),
         "platform": payload.get("platform"),
@@ -145,7 +147,13 @@ def normalize_endpoint():
         "conditions": conditions,
         "status": result.status,
         "notes": result.notes,
-    })
+    }
+
+
+@app.post("/normalize")
+def normalize_endpoint():
+    payload = request.get_json(force=True) or {}
+    return jsonify(build_normalize_response(payload))
 
 
 @app.get("/health")
