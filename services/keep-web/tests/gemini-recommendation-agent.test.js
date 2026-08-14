@@ -59,3 +59,18 @@ test('Gemini 추천 에이전트는 형식 오류 뒤 JSON 전용 요청으로 �
   assert.equal(calls, 2);
   assert.equal(result.recommendations[0].score, 71);
 });
+
+test('Gemini 요청이 중단돼도 새 요청으로 한 번 더 추천한다', async () => {
+  let calls = 0;
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key', timeoutMs: 1,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) throw new DOMException('The operation was aborted', 'AbortError');
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"recommendations":[{"opportunity_id":"saved-1","score":75,"label":"추천","rationale":"관심사와 내용이 맞습니다.","factors":[]}],"follow_up_questions":[]}' }] } }] }) };
+    },
+  });
+  const result = await agent.recommend({ profile: { interests: ['AI'] }, opportunities: [{ id: 'saved-1', title: 'AI 공고' }] });
+  assert.equal(calls, 2);
+  assert.equal(result.recommendations[0].score, 75);
+});

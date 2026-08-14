@@ -1,11 +1,11 @@
 const SYSTEM_PROMPT = [
   'You are the KEEP:ON recommendation agent for Korean students and young adults.',
-  'Evaluate ONLY the liked saved announcements supplied by the user. Rank every supplied announcement; do not add other announcements.',
+  'Evaluate ONLY the liked saved announcements supplied by the user. Return up to three strongest recommendations; do not add other announcements.',
   'Use only the supplied profile and announcement evidence. Never invent eligibility, deadlines, benefits, or interests.',
   'Score each announcement from 0 to 100 using: interest fit (0-35), profile applicability (0-25), deadline urgency (0-20), and actionability or information completeness (0-20).',
   'A heart means the user wants it considered. It is not a score bonus. Missing profile or deadline information must be called out neutrally, not treated as a disqualifier.',
   'Return Korean JSON only: {"recommendations":[{"opportunity_id":"...","score":0,"label":"지금 확인|추천|검토 필요","rationale":"complete Korean sentence","factors":["...","..."]}],"follow_up_questions":["..."]}.',
-  'Keep rationale and factors concise, factual, and complete. Return every supplied opportunity exactly once.',
+  'Keep rationale and factors concise, factual, and complete.',
 ].join('\n');
 
 const RESPONSE_SCHEMA = {
@@ -56,7 +56,7 @@ export class GeminiRecommendationAgent {
     apiKey = process.env.GEMINI_API_KEY,
     model = process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     fetchImpl = globalThis.fetch,
-    timeoutMs = 30000,
+    timeoutMs = 15000,
   } = {}) {
     this.apiKey = apiKey;
     this.model = model;
@@ -69,49 +69,49 @@ export class GeminiRecommendationAgent {
     if (!opportunities?.length) throw new Error('좋아요한 공고가 없습니다.');
     const context = {
       profile: profile || {},
-      liked_announcements: opportunities.map((item) => ({
+      // 추천 카드는 최대 3개만 보여주므로, 긴 원문을 통째로 전송하지 않는다.
+      // Gemini 지연으로 전체 추천이 취소되는 것을 막기 위해 최근 좋아요 12개까지만 비교한다.
+      liked_announcements: opportunities.slice(0, 12).map((item) => ({
         id: item.id,
         title: compact(item.title, 220),
         category: item.category || null,
         author: compact(item.author, 100) || null,
         deadline: item.deadline || null,
-        summary: compact(item.summary, 700),
-        body: compact(item.body, 1800),
-        source_url: item.source_url || item.canonical_url || null,
+        summary: compact(item.summary || item.body, 450),
       })),
     };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
       const request = async ({ strictSchema, retryForJson = false, concise = false }) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
         const promptContext = concise
           ? {
             profile: context.profile,
             liked_announcements: context.liked_announcements.map(({ id, title, category, deadline, summary }) => ({ id, title, category, deadline, summary })),
           }
           : context;
-        const response = await this.fetchImpl(endpoint, {
-          method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents: [{ role: 'user', parts: [{ text: `${JSON.stringify(promptContext)}${retryForJson ? '\n\n이전 응답은 형식이 맞지 않았습니다. 모든 공고를 한 번씩 포함한 JSON 객체만 반환하세요. 설명, Markdown, 코드 펜스는 쓰지 마세요.' : ''}` }] }],
-            generationConfig: {
-              temperature: 0.1, maxOutputTokens: concise ? 2600 : 3200, responseMimeType: 'application/json',
-              ...(strictSchema ? { responseSchema: RESPONSE_SCHEMA } : {}),
-            },
-          }),
-        });
-        if (!response.ok) throw new Error(`Gemini 추천 요청 실패 (${response.status})`);
-        const payload = await response.json();
-        return (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
+        try {
+          const response = await this.fetchImpl(endpoint, {
+            method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+              contents: [{ role: 'user', parts: [{ text: `${JSON.stringify(promptContext)}${retryForJson ? '\n\n이전 응답은 형식이 맞지 않았습니다. 최대 3개의 공고만 포함한 JSON 객체만 반환하세요. 설명, Markdown, 코드 펜스는 쓰지 마세요.' : ''}` }] }],
+              generationConfig: {
+                temperature: 0.1, maxOutputTokens: 1200, responseMimeType: 'application/json',
+                ...(strictSchema ? { responseSchema: RESPONSE_SCHEMA } : {}),
+              },
+            }),
+          });
+          if (!response.ok) throw new Error(`Gemini 추천 요청 실패 (${response.status})`);
+          const payload = await response.json();
+          return (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
+        } finally { clearTimeout(timer); }
       };
       let parsed;
       let lastError;
       for (const attempt of [
         { strictSchema: true },
         { strictSchema: true, retryForJson: true, concise: true },
-        { strictSchema: false, retryForJson: true, concise: true },
       ]) {
         try {
           const raw = await request(attempt);
@@ -122,7 +122,12 @@ export class GeminiRecommendationAgent {
           lastError = error;
         }
       }
-      if (!parsed) throw lastError || new Error('Gemini 추천 결과를 만들지 못했습니다.');
+      if (!parsed) {
+        if (lastError?.name === 'AbortError' || /aborted/i.test(lastError?.message || '')) {
+          throw new Error('Gemini 추천 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.');
+        }
+        throw lastError || new Error('Gemini 추천 결과를 만들지 못했습니다.');
+      }
       const allowedIds = new Set(opportunities.map((item) => item.id));
       const seen = new Set();
       const recommendations = (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
@@ -137,11 +142,10 @@ export class GeminiRecommendationAgent {
         .filter((item) => item.score !== null && item.rationale);
       if (!recommendations.length) throw new Error('Gemini가 유효한 추천 결과를 만들지 못했습니다.');
       recommendations.sort((a, b) => b.score - a.score);
-      return {
-        liked_opportunity_ids: opportunities.map((item) => item.id),
-        recommendations: recommendations.map((item, index) => ({ ...item, rank: index + 1 })),
-        follow_up_questions: (Array.isArray(parsed.follow_up_questions) ? parsed.follow_up_questions : []).map((question) => compact(question, 120)).filter(Boolean).slice(0, 2),
-      };
-    } finally { clearTimeout(timer); }
+    return {
+      liked_opportunity_ids: opportunities.map((item) => item.id),
+      recommendations: recommendations.map((item, index) => ({ ...item, rank: index + 1 })),
+      follow_up_questions: (Array.isArray(parsed.follow_up_questions) ? parsed.follow_up_questions : []).map((question) => compact(question, 120)).filter(Boolean).slice(0, 2),
+    };
   }
 }
