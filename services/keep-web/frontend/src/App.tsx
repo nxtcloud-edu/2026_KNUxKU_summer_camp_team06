@@ -499,7 +499,9 @@ function DecisionCard({ item }: { item: Opportunity }) {
   const snoozeLabel = record.snoozeUntil
     ? new Date(record.snoozeUntil).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
     : snoozeDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-  const canOpenOriginal = /^https?:\/\//i.test(item.sourceUrl) && item.thumbnailKind !== 'pdf' && item.thumbnailKind !== 'image';
+  // SNS 게시물도 이미지 썸네일을 쓰므로, 썸네일 종류가 image인 것만으로 원문을 숨기면 안 된다.
+  // 원문 URL이 없는 PDF 업로드만 원문 확인을 제공하지 않는다.
+  const canOpenOriginal = /^https?:\/\//i.test(item.sourceUrl) && item.thumbnailKind !== 'pdf';
   const remove = async () => {
     if (!window.confirm(`'${item.title}' 정보를 삭제할까요?`)) return;
     setDeleting(true);
