@@ -42,3 +42,20 @@ test('Gemini 추천 에이전트는 코드 펜스로 감싼 JSON도 처리한다
   const result = await agent.recommend({ profile: {}, opportunities: [{ id: 'saved-1', title: '테스트 공고' }] });
   assert.equal(result.recommendations[0].opportunity_id, 'saved-1');
 });
+
+test('Gemini 추천 에이전트는 형식 오류 뒤 JSON 전용 요청으로 재시도한다', async () => {
+  let calls = 0;
+  const agent = new GeminiRecommendationAgent({
+    apiKey: 'test-key',
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      const request = JSON.parse(options.body);
+      if (calls === 1) return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '추천 결과입니다.' }] } }] }) };
+      assert.match(request.contents[0].parts[0].text, /JSON 객체만 반환/);
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"recommendations":[{"opportunity_id":"saved-1","score":71,"label":"추천","rationale":"공고 내용이 확인됩니다.","factors":[]}],"follow_up_questions":[]}' }] } }] }) };
+    },
+  });
+  const result = await agent.recommend({ profile: {}, opportunities: [{ id: 'saved-1', title: '테스트 공고' }] });
+  assert.equal(calls, 2);
+  assert.equal(result.recommendations[0].score, 71);
+});

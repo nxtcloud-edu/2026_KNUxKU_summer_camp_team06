@@ -84,12 +84,12 @@ export class GeminiRecommendationAgent {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
-      const request = async (strictSchema) => {
+      const request = async (strictSchema, retryForJson = false) => {
         const response = await this.fetchImpl(endpoint, {
           method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents: [{ role: 'user', parts: [{ text: JSON.stringify(context) }] }],
+            contents: [{ role: 'user', parts: [{ text: `${JSON.stringify(context)}${retryForJson ? '\n\n이전 응답은 JSON 형식이 아니었습니다. 설명 없이 JSON 객체만 반환하세요.' : ''}` }] }],
             generationConfig: {
               temperature: 0.1, maxOutputTokens: 1800, responseMimeType: 'application/json',
               ...(strictSchema ? { responseSchema: RESPONSE_SCHEMA } : {}),
@@ -101,9 +101,16 @@ export class GeminiRecommendationAgent {
         return (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('').trim();
       };
       let raw = '';
-      try { raw = await request(true); } catch { raw = await request(false); }
-      if (!raw) throw new Error('Gemini 추천 응답이 비어 있습니다.');
-      const parsed = parseGeminiJson(raw);
+      let parsed;
+      try {
+        raw = await request(true);
+        parsed = parseGeminiJson(raw);
+      } catch {
+        // 구조화 출력이 거부되거나 모델이 형식을 어기면, JSON 전용 재요청을 한 번 한다.
+        raw = await request(false, true);
+        if (!raw) throw new Error('Gemini 추천 응답이 비어 있습니다.');
+        parsed = parseGeminiJson(raw);
+      }
       const allowedIds = new Set(opportunities.map((item) => item.id));
       const seen = new Set();
       const recommendations = (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
